@@ -8,6 +8,7 @@ import {
   nowIso,
   type Answer,
   type Assessment,
+  type Assessor,
   type EquipmentItem,
   type Finding,
   type ResponseRow,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/templates";
 import { deriveFindings } from "@/lib/findings";
 import AiDraftButton, { AiDraftBadge } from "@/components/AiDraftButton";
+import { AssessorCard } from "@/components/AssessorCard";
 import { useMode } from "@/lib/mode";
 import ProdNotice from "@/components/ProdNotice";
 import {
@@ -270,37 +272,41 @@ function CheckpointCard({
               onChange={(r) => onSave({ risk: r })}
             />
           </Field>
-          <Field label="Assessor note">
-            <div className="flex flex-col gap-2">
-              <textarea
-                className={`${inputCls} min-h-[88px]`}
-                value={response?.note ?? ""}
-                onChange={(e) => onSave({ note: e.target.value })}
-                placeholder="Write what you actually see — not what you assume…"
-              />
-              <div className="flex justify-end">
-                <DictateButton
-                  onDictated={(text) =>
-                    onSave({
-                      note: response?.note
-                        ? `${response.note} ${text}`
-                        : text,
-                    })
-                  }
-                />
-              </div>
-            </div>
-          </Field>
-          <Field label="Photo ref">
-            <input
-              className={inputCls}
-              value={response?.photoRef ?? ""}
-              onChange={(e) => onSave({ photoRef: e.target.value })}
-              placeholder="e.g. P014"
-            />
-          </Field>
         </div>
       )}
+
+      {/* Notes are always visible — one text box per checkpoint, like the hub. */}
+      <div className="mt-4 space-y-4">
+        <Field label="Assessor note">
+          <div className="flex flex-col gap-2">
+            <textarea
+              className={`${inputCls} min-h-[88px]`}
+              value={response?.note ?? ""}
+              onChange={(e) => onSave({ note: e.target.value })}
+              placeholder="Write what you actually see — not what you assume…"
+            />
+            <div className="flex justify-end">
+              <DictateButton
+                onDictated={(text) =>
+                  onSave({
+                    note: response?.note
+                      ? `${response.note} ${text}`
+                      : text,
+                  })
+                }
+              />
+            </div>
+          </div>
+        </Field>
+        <Field label="Photo ref">
+          <input
+            className={inputCls}
+            value={response?.photoRef ?? ""}
+            onChange={(e) => onSave({ photoRef: e.target.value })}
+            placeholder="e.g. P014"
+          />
+        </Field>
+      </div>
     </Card>
   );
 }
@@ -645,9 +651,16 @@ export default function TakerPage() {
     setTick((t) => t + 1);
   };
 
-  const leadName = assessment.leadAssessorId
-    ? db.assessors.get(assessment.leadAssessorId)?.name
-    : undefined;
+  const teamAssessors = useMemo(() => {
+    const ids = [
+      ...(assessment.leadAssessorId ? [assessment.leadAssessorId] : []),
+      ...assessment.assessorIds,
+    ];
+    const seen = new Set<string>();
+    return ids
+      .map((id) => db.assessors.get(id))
+      .filter((a): a is Assessor => !!a && !seen.has(a.id) && (seen.add(a.id), true));
+  }, [assessment.leadAssessorId, assessment.assessorIds, tick]);
 
   return (
     <div>
@@ -677,7 +690,9 @@ export default function TakerPage() {
               </div>
               <div>
                 <p className="text-xs text-gray-400">Lead assessor</p>
-                <p className="font-medium">{leadName || "—"}</p>
+                <p className="font-medium">
+                  {teamAssessors[0]?.name || "—"}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-gray-400">Escort</p>
@@ -695,6 +710,20 @@ export default function TakerPage() {
               </p>
             )}
           </Card>
+
+          {/* Assigned assessors — photo + clearance, verifiable at a glance */}
+          {teamAssessors.length > 0 && (
+            <div className="mb-4">
+              <h2 className="mb-2 text-sm font-semibold text-gray-700">
+                Assessors on this visit
+              </h2>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {teamAssessors.map((a) => (
+                  <AssessorCard key={a.id} assessor={a} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Progress + domain jump nav */}
           <div className="sticky top-16 z-20 -mx-4 mb-4 bg-gray-50/95 px-4 py-2 backdrop-blur md:-mx-6 md:px-6">

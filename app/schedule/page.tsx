@@ -16,6 +16,8 @@ import {
   inputCls,
 } from "@/components/ui";
 import ProdNotice from "@/components/ProdNotice";
+import { AssessorCompact, AssessorUnassigned } from "@/components/AssessorCard";
+import ScheduleCalendar from "@/components/ScheduleCalendar";
 import { getReassessment } from "@/lib/schedule";
 
 const TEMPLATES = [
@@ -184,9 +186,9 @@ function ScheduleRow({
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const assessorName = item.assessorId
-    ? (db.assessors.get(item.assessorId)?.name ?? "Unknown assessor")
-    : "Unassigned";
+  const assessor = item.assessorId
+    ? db.assessors.get(item.assessorId)
+    : undefined;
   const overdue = item.status === "scheduled" && item.date < todayLocal();
   const advance = ADVANCE[item.status];
 
@@ -244,8 +246,15 @@ function ScheduleRow({
               {fmtDate(item.date)}
             </p>
             <p className="mt-0.5 text-sm text-gray-500">
-              {templateLabel(item.templateId)} · {assessorName}
+              {templateLabel(item.templateId)}
             </p>
+            <div className="mt-2">
+              {assessor ? (
+                <AssessorCompact assessor={assessor} />
+              ) : (
+                <AssessorUnassigned />
+              )}
+            </div>
             {item.focusNotes && (
               <p className="mt-1 line-clamp-2 text-sm text-gray-600">{item.focusNotes}</p>
             )}
@@ -382,6 +391,7 @@ export default function SchedulePage() {
   const [mode] = useMode();
   const [, force] = useState(0);
   const [showForm, setShowForm] = useState(false);
+  const [view, setView] = useState<"list" | "calendar">("list");
   const refresh = () => force((n) => n + 1);
 
   const items = useMemo(() => db.schedules.list(), []); // re-read each render via refresh
@@ -417,34 +427,58 @@ export default function SchedulePage() {
 
       <ReassessmentPanel />
 
-      <Card className="p-0 md:p-0">
-        <h2 className="px-4 pt-4 font-semibold md:px-5 md:pt-5">Upcoming</h2>
-        {upcoming.length === 0 ? (
-          <div className="px-4 pb-4 pt-2 md:px-5 md:pb-5">
-            <EmptyState
-              title="No upcoming visits"
-              body="Schedule an assessment to put it on the dispatch board."
-              action={<Btn onClick={() => setShowForm(true)}>Schedule assessment</Btn>}
-            />
-          </div>
-        ) : (
-          <ul className="mt-1">
-            {upcoming.map((s) => (
-              <ScheduleRow key={s.id} item={s} onChanged={refresh} />
-            ))}
-          </ul>
-        )}
-      </Card>
+      {/* List / Calendar toggle */}
+      <div className="flex gap-1 rounded-full border border-gray-200 bg-white p-1 self-start">
+        {(["list", "calendar"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            className={`min-h-[44px] rounded-full px-4 text-sm font-semibold transition ${
+              view === v
+                ? "bg-slate-900 text-white"
+                : "text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            {v === "list" ? "☰ List" : "📅 Calendar"}
+          </button>
+        ))}
+      </div>
 
-      {history.length > 0 && (
-        <Card className="p-0 md:p-0">
-          <h2 className="px-4 pt-4 font-semibold md:px-5 md:pt-5">History</h2>
-          <ul className="mt-1">
-            {history.map((s) => (
-              <ScheduleRow key={s.id} item={s} onChanged={refresh} />
-            ))}
-          </ul>
-        </Card>
+      {view === "calendar" ? (
+        <ScheduleCalendar items={items} />
+      ) : (
+        <>
+          <Card className="p-0 md:p-0">
+            <h2 className="px-4 pt-4 font-semibold md:px-5 md:pt-5">Upcoming</h2>
+            {upcoming.length === 0 ? (
+              <div className="px-4 pb-4 pt-2 md:px-5 md:pb-5">
+                <EmptyState
+                  title="No upcoming visits"
+                  body="Schedule an assessment to put it on the dispatch board."
+                  action={<Btn onClick={() => setShowForm(true)}>Schedule assessment</Btn>}
+                />
+              </div>
+            ) : (
+              <ul className="mt-1">
+                {upcoming.map((s) => (
+                  <ScheduleRow key={s.id} item={s} onChanged={refresh} />
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          {history.length > 0 && (
+            <Card className="p-0 md:p-0">
+              <h2 className="px-4 pt-4 font-semibold md:px-5 md:pt-5">History</h2>
+              <ul className="mt-1">
+                {history.map((s) => (
+                  <ScheduleRow key={s.id} item={s} onChanged={refresh} />
+                ))}
+              </ul>
+            </Card>
+          )}
+        </>
       )}
 
       {showForm && (
