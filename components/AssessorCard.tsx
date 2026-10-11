@@ -50,7 +50,7 @@ function Photo({ a, size }: { a: Assessor; size: "sm" | "md" }) {
   return (
     <div
       aria-hidden
-      className={`${cls} flex shrink-0 items-center justify-center rounded-xl bg-blue-100 font-bold text-blue-800`}
+      className={`${cls} flex shrink-0 items-center justify-center rounded-xl bg-violet-100 font-bold text-violet-800`}
     >
       {initials(a.name)}
     </div>

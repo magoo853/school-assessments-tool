@@ -359,7 +359,7 @@ export default function CleryEditorPage() {
             onClick={() => setYear(y)}
             className={`min-h-[44px] flex-1 rounded-lg border px-4 py-2.5 text-sm font-semibold sm:flex-none sm:px-6 ${
               activeYear === y
-                ? "border-blue-600 bg-blue-600 text-white"
+                ? "border-blue-600 bar-gradient text-white"
                 : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
             }`}
           >
@@ -436,7 +436,7 @@ export default function CleryEditorPage() {
                 <div className="flex items-start gap-3">
                   <input
                     type="checkbox"
-                    className="mt-1 h-6 w-6 shrink-0 accent-blue-600"
+                    className="mt-1 h-6 w-6 shrink-0 accent-violet-600"
                     checked={checked}
                     onChange={(e) => toggleDisclosure(def.key, e.target.checked)}
                     aria-label={def.label}

@@ -179,7 +179,7 @@ function AssessorCard({
         ) : (
           <div
             aria-hidden
-            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-xl font-bold text-blue-800"
+            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-xl font-bold text-violet-800"
           >
             {initials(a.name)}
           </div>
@@ -436,7 +436,7 @@ export default function AssessorsPage() {
               ) : (
                 <div
                   aria-hidden
-                  className="flex h-20 w-20 items-center justify-center rounded-xl bg-blue-100 text-2xl font-bold text-blue-800"
+                  className="flex h-20 w-20 items-center justify-center rounded-xl bg-violet-100 text-2xl font-bold text-violet-800"
                 >
                   {initials(form.name)}
                 </div>

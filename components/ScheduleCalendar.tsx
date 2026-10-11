@@ -14,7 +14,7 @@ import { AssessorCompact, AssessorUnassigned } from "@/components/AssessorCard";
 import { db } from "@/lib/store";
 
 const STATUS_TONE: Record<ScheduleStatus, string> = {
-  scheduled: "bg-blue-500",
+  scheduled: "bg-violet-500",
   in_progress: "bg-amber-500",
   completed: "bg-green-500",
   cancelled: "bg-gray-300",
@@ -117,14 +117,14 @@ export default function ScheduleCalendar({ items }: { items: ScheduleItem[] }) {
                 aria-label={`${key}, ${dayItems.length} visit(s)`}
                 className={`flex min-h-[48px] flex-col items-center justify-start rounded-lg border pt-1.5 transition ${
                   isSelected
-                    ? "border-blue-500 bg-blue-50"
+                    ? "border-violet-500 bg-violet-50"
                     : isToday
                       ? "border-gray-300 bg-white ring-1 ring-gray-300"
                       : "border-transparent bg-white hover:border-gray-200"
                 }`}
               >
                 <span
-                  className={`text-sm ${isSelected ? "font-bold text-blue-800" : "text-gray-700"}`}
+                  className={`text-sm ${isSelected ? "font-bold text-violet-800" : "text-gray-700"}`}
                 >
                   {Number(key.slice(8))}
                 </span>

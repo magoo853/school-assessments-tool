@@ -13,7 +13,7 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
   const pct = max === 0 ? 0 : Math.round((value / max) * 100);
   return (
     <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-200">
-      <div className="h-full rounded-full bg-blue-600" style={{ width: `${pct}%` }} />
+      <div className="h-full rounded-full bar-gradient" style={{ width: `${pct}%` }} />
     </div>
   );
 }

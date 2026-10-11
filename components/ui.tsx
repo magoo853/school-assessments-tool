@@ -15,7 +15,7 @@ export function Card({
 }) {
   return (
     <section
-      className={`rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:p-5 ${className}`}
+      className={`rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.05),0_12px_32px_-16px_rgba(109,40,217,0.18)] md:p-5 ${className}`}
     >
       {children}
     </section>
@@ -32,10 +32,10 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
@@ -54,7 +54,8 @@ export function Btn({
 }) {
   const styles: Record<BtnVariant, string> = {
     primary: "btn-brand font-semibold",
-    ghost: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 font-medium",
+    ghost:
+      "border border-slate-300 bg-white text-slate-700 hover:border-violet-300 hover:text-violet-700 hover:bg-violet-50/50 font-medium",
     danger:
       "border border-red-300 bg-white text-red-700 hover:bg-red-50 font-medium",
   };
@@ -69,11 +70,14 @@ export function Btn({
 }
 
 const TONES: Record<string, string> = {
-  gray: "bg-gray-100 text-gray-700",
+  gray: "bg-slate-100 text-slate-700",
   blue: "bg-blue-100 text-blue-800",
-  green: "bg-green-100 text-green-800",
-  yellow: "bg-yellow-100 text-yellow-800",
-  red: "bg-red-100 text-red-800",
+  violet: "bg-violet-100 text-violet-800",
+  indigo: "bg-indigo-100 text-indigo-800",
+  green: "bg-emerald-100 text-emerald-800",
+  yellow: "bg-amber-100 text-amber-800",
+  red: "bg-rose-100 text-rose-800",
+  cyan: "bg-cyan-100 text-cyan-800",
 };
 
 export function Badge({
@@ -103,10 +107,12 @@ export function StatusPill({ status }: { status: string }) {
     status === "completed"
       ? "green"
       : status === "in_progress"
-        ? "blue"
+        ? "violet"
         : status === "cancelled" || status === "declined"
           ? "gray"
-          : "yellow";
+          : status === "scheduled"
+            ? "cyan"
+            : "yellow";
   const label = status
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -133,7 +139,7 @@ export function Field({
 }
 
 export const inputCls =
-  "w-full min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none placeholder:text-gray-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
+  "w-full min-h-[44px] rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-100";
 
 export function EmptyState({
   title,
@@ -145,9 +151,9 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
-      <p className="font-semibold text-gray-800">{title}</p>
-      {body && <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">{body}</p>}
+    <div className="rounded-2xl border border-dashed border-violet-300 bg-gradient-to-b from-violet-50/60 to-white p-8 text-center">
+      <p className="font-semibold text-slate-800">{title}</p>
+      {body && <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">{body}</p>}
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   );

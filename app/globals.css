@@ -2,30 +2,80 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ------------------------------------------------------------------ */
+/* School Assessments Tool — "Aurora" theme                             */
+/* Dark futuristic chrome (sidebar/header) over light field-readable   */
+/* content, with a violet→indigo signature gradient and cyan highlights.*/
+/* ------------------------------------------------------------------ */
+
 body {
-  @apply bg-gray-50 text-gray-900 antialiased;
+  @apply bg-[#EEF1F8] text-slate-900 antialiased;
+  background-image:
+    radial-gradient(60rem 24rem at 50% -8rem, rgba(124, 58, 237, 0.08), transparent 70%);
+  background-repeat: no-repeat;
 }
 
-/* Brand theming: --brand* custom properties drive .btn-brand and the
- * active nav item. Defaults below; a theme provider may override per client. */
 :root {
-  --brand: #1d4ed8;
-  --brand-dark: #1e40af;
+  --brand: #7c3aed;
+  --brand-dark: #6d28d9;
   --brand-contrast: #ffffff;
+  --brand-glow: rgba(124, 58, 237, 0.4);
+  --chrome: #0b1120; /* deep space navy for sidebar/header */
 }
 
+/* Signature gradient button */
 .btn-brand {
-  background-color: var(--brand);
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 45%, #4f46e5 100%);
   color: var(--brand-contrast);
+  box-shadow:
+    0 1px 2px rgba(76, 29, 149, 0.4),
+    0 8px 20px -8px var(--brand-glow);
+  transition: transform 0.12s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 .btn-brand:hover {
-  background-color: var(--brand-dark);
+  filter: brightness(1.08);
+  box-shadow:
+    0 1px 2px rgba(76, 29, 149, 0.4),
+    0 12px 26px -8px var(--brand-glow);
+  transform: translateY(-1px);
+}
+.btn-brand:active {
+  transform: translateY(0);
 }
 .btn-brand:disabled {
   opacity: 0.5;
+  transform: none;
 }
 
+/* Active nav item */
 aside nav a.bg-brand-active {
-  background-color: var(--brand);
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 55%, #4f46e5 100%);
   color: var(--brand-contrast);
+  box-shadow: 0 6px 18px -6px var(--brand-glow);
+}
+
+/* Gradient text for wordmarks and hero numbers */
+.text-gradient {
+  background: linear-gradient(115deg, #c4b5fd 0%, #818cf8 45%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Gradient progress bars */
+.bar-gradient {
+  background: linear-gradient(90deg, #8b5cf6, #4f46e5 60%, #22d3ee 130%);
+}
+
+/* Subtle dark-chrome glow used behind the sidebar logo */
+.chrome-glow {
+  background:
+    radial-gradient(24rem 12rem at 20% 0%, rgba(139, 92, 246, 0.28), transparent 70%),
+    radial-gradient(20rem 10rem at 90% 10%, rgba(34, 211, 238, 0.14), transparent 70%);
+}
+
+/* Focus rings follow the brand */
+*:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 2px;
 }
