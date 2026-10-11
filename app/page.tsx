@@ -14,6 +14,94 @@ import { Card, PageHeader, Badge, RiskBadge, StatusPill, EmptyState } from "@/co
 import { FindingsRiskChart, AssessmentStatusDonut } from "@/components/DashboardCharts";
 import ProdNotice from "@/components/ProdNotice";
 
+const ONBOARD_DISMISS_KEY = "sat_onboard_dismissed";
+
+const ONBOARD_STEPS = [
+  {
+    n: 1,
+    title: "Add your assessor profile",
+    body: "Photo, contact info, and clearance credentials — schools see this before a visit.",
+    href: "/assessors",
+    icon: "👥",
+  },
+  {
+    n: 2,
+    title: "Schedule a visit",
+    body: "Pick a client, date, template, and assessor. One tap starts the walkthrough on site.",
+    href: "/schedule",
+    icon: "🗓️",
+  },
+  {
+    n: 3,
+    title: "Run a walkthrough",
+    body: "Answer checkpoints, dictate notes, capture photo evidence — findings build themselves.",
+    href: "/assessments",
+    icon: "📋",
+  },
+  {
+    n: 4,
+    title: "Generate the client report",
+    body: "AAR, Findings, and Recommendations — editable, printable, and shareable as one HTML file.",
+    href: "/reports",
+    icon: "📄",
+  },
+];
+
+/** First-run checklist — only when the workspace is completely empty. */
+function OnboardingCard({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <Card className="!border-violet-200 bg-gradient-to-b from-violet-50/70 to-white">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold tracking-tight text-slate-900">
+            Get started
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Four steps from empty workspace to your first client report.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-slate-400 hover:bg-white hover:text-slate-600"
+          aria-label="Dismiss getting started"
+        >
+          ✕
+        </button>
+      </div>
+      <ol className="mt-4 space-y-2">
+        {ONBOARD_STEPS.map((s) => (
+          <li key={s.n}>
+            <Link
+              href={s.href}
+              className="group flex min-h-[44px] items-center gap-3 rounded-xl border border-slate-200/70 bg-white px-4 py-3 transition-all hover:border-violet-300 hover:shadow-[0_8px_24px_-12px_rgba(109,40,217,0.25)]"
+            >
+              <span
+                aria-hidden
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 text-lg text-white"
+              >
+                {s.icon}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-slate-900">
+                  <span className="mr-1.5 text-xs font-bold text-violet-500">
+                    {s.n}
+                  </span>
+                  {s.title}
+                </span>
+                <span className="block truncate text-xs text-slate-500">
+                  {s.body}
+                </span>
+              </span>
+              <span aria-hidden className="text-violet-400 transition-transform group-hover:translate-x-1">→</span>
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </Card>
+  );
+}
+
 const RISK_ORDER: Record<string, number> = { high: 0, moderate: 1, low: 2 };
 
 interface UpcomingRow {
@@ -30,6 +118,8 @@ interface Snapshot {
   cleryCount: number;
   riskCounts: Record<string, number>;
   statusCounts: Record<string, number>;
+  assessmentCount: number;
+  scheduleCount: number;
 }
 
 function loadSnapshot(): Snapshot {
@@ -76,6 +166,8 @@ function loadSnapshot(): Snapshot {
     cleryCount: db.cleryReports.list().length,
     riskCounts,
     statusCounts,
+    assessmentCount: db.assessments.list().length,
+    scheduleCount: db.schedules.list().length,
   };
 }
 
@@ -107,9 +199,17 @@ function StatCard({
 export default function DashboardPage() {
   const [mode] = useMode();
   const [snap, setSnap] = useState<Snapshot | null>(null);
+  const [onboardDismissed, setOnboardDismissed] = useState(false);
 
   useEffect(() => {
     setSnap(loadSnapshot());
+    try {
+      setOnboardDismissed(
+        window.localStorage.getItem(ONBOARD_DISMISS_KEY) === "1"
+      );
+    } catch {
+      /* ignore */
+    }
   }, [mode]);
 
   // Re-load after mode switches (Shell seeds/clears data on the same event;
@@ -122,6 +222,21 @@ export default function DashboardPage() {
 
   const s = snap?.stats;
   const isProd = mode === "prod";
+  const showOnboarding =
+    !onboardDismissed &&
+    snap !== null &&
+    snap.assessmentCount === 0 &&
+    snap.scheduleCount === 0 &&
+    snap.assessorCount === 0;
+
+  const dismissOnboarding = () => {
+    setOnboardDismissed(true);
+    try {
+      window.localStorage.setItem(ONBOARD_DISMISS_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -139,6 +254,8 @@ export default function DashboardPage() {
       />
 
       {isProd && <ProdNotice />}
+
+      {showOnboarding && <OnboardingCard onDismiss={dismissOnboarding} />}
 
       {/* Stat cards — every number drills down */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

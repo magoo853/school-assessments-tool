@@ -9,7 +9,9 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { db, type Finding, type Risk } from "@/lib/store";
-import { TEMPLATES, getTemplate, getCheckpoint } from "@/lib/templates";
+import { getCheckpoint } from "@/lib/templates";
+import { resolveTemplate, allTemplates } from "@/lib/customTemplates";
+import { photosFor } from "@/lib/photos";
 import { useMode } from "@/lib/mode";
 import {
   Card,
@@ -29,6 +31,26 @@ const RISK_FILTERS: { key: string; label: string }[] = [
 
 const RISK_SEVERITY: Record<Risk, number> = { high: 0, moderate: 1, low: 2 };
 
+/** Small non-interactive thumbnail strip for list rows. */
+function FindingThumbs({ photoIds }: { photoIds: string[] | undefined }) {
+  const photos = photosFor(photoIds).slice(0, 4);
+  if (!photos.length) return null;
+  return (
+    <div className="mt-2 flex gap-1.5" aria-label={`${photos.length} photos`}>
+      {photos.map((p) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={p.id}
+          src={p.dataUrl}
+          alt="Evidence photo"
+          className="h-10 w-10 rounded-lg border border-slate-200 object-cover"
+          loading="lazy"
+        />
+      ))}
+    </div>
+  );
+}
+
 interface FindingRow {
   finding: Finding;
   clientName: string;
@@ -43,7 +65,7 @@ function loadRows(): FindingRow[] {
     .list()
     .map((f) => {
       const a = db.assessments.get(f.assessmentId);
-      const template = getTemplate(a?.templateId ?? "");
+      const template = resolveTemplate(a?.templateId ?? "");
       const hit = getCheckpoint(template, f.checkpointKey);
       return {
         finding: f,
@@ -60,13 +82,6 @@ function loadRows(): FindingRow[] {
         y.date.localeCompare(x.date)
     );
 }
-
-const DOMAIN_OPTIONS = TEMPLATES.flatMap((t) =>
-  t.domains.map((d) => ({
-    key: `${t.id}:${d.id}`,
-    label: `${d.name} — ${t.name}`,
-  }))
-);
 
 export default function FindingsPage() {
   return (
@@ -92,6 +107,18 @@ function FindingsInner() {
   useEffect(() => {
     setRows(loadRows());
   }, [mode]);
+
+  const domainOptions = useMemo(
+    () =>
+      allTemplates().flatMap(({ template: t, custom }) =>
+        t.domains.map((d) => ({
+          key: `${t.id}:${d.id}`,
+          label: `${d.name} — ${t.name}${custom ? " (custom)" : ""}`,
+        }))
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mode]
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -142,7 +169,7 @@ function FindingsInner() {
             className={inputCls}
           >
             <option value="all">All domains</option>
-            {DOMAIN_OPTIONS.map((d) => (
+            {domainOptions.map((d) => (
               <option key={d.key} value={d.key}>
                 {d.label}
               </option>
@@ -186,6 +213,7 @@ function FindingsInner() {
                       {r.date ? ` · ${r.date}` : ""}
                       {` · ${r.domainName}`}
                     </p>
+                    <FindingThumbs photoIds={r.finding.photoIds} />
                   </div>
                   <div className="shrink-0 pt-0.5">
                     <RiskBadge risk={r.finding.risk} />

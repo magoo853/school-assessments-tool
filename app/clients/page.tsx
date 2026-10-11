@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { db, type Assessment } from "@/lib/store";
-import { getTemplate } from "@/lib/templates";
+import { resolveTemplate } from "@/lib/customTemplates";
 import { useMode } from "@/lib/mode";
 import { safetyScore } from "@/lib/data";
 import {
@@ -145,7 +145,7 @@ export default function ClientsPage() {
         return {
           assessment: a,
           date: (a.completedAt ?? a.createdAt).slice(0, 10),
-          templateName: getTemplate(a.templateId).name,
+          templateName: resolveTemplate(a.templateId).name,
           score: s.score,
           high: s.high,
           moderate: s.moderate,

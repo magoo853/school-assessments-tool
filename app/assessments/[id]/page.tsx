@@ -15,15 +15,16 @@ import {
   type Risk,
 } from "@/lib/store";
 import {
-  getTemplate,
   getCheckpoint,
   templateSize,
   type AssessmentTemplate,
   type Checkpoint,
 } from "@/lib/templates";
+import { resolveTemplate } from "@/lib/customTemplates";
 import { deriveFindings } from "@/lib/findings";
 import AiDraftButton, { AiDraftBadge } from "@/components/AiDraftButton";
 import { AssessorCard } from "@/components/AssessorCard";
+import { PhotoPicker } from "@/components/PhotoPicker";
 import { useMode } from "@/lib/mode";
 import ProdNotice from "@/components/ProdNotice";
 import {
@@ -306,6 +307,12 @@ function CheckpointCard({
             placeholder="e.g. P014"
           />
         </Field>
+        <Field label="Photo evidence">
+          <PhotoPicker
+            photoIds={response?.photoIds}
+            onChange={(photoIds) => onSave({ photoIds })}
+          />
+        </Field>
       </div>
     </Card>
   );
@@ -545,6 +552,18 @@ function ReviewStep({
                 checkpointText={hit?.checkpoint.text}
                 onChanged={() => setTick((t) => t + 1)}
               />
+              <div className="mt-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Photo evidence
+                </p>
+                <PhotoPicker
+                  photoIds={f.photoIds}
+                  onChange={(photoIds) => {
+                    db.findings.upsert({ ...f, photoIds });
+                    setTick((t) => t + 1);
+                  }}
+                />
+              </div>
               <EquipmentForm finding={f} onChanged={() => setTick((t) => t + 1)} />
             </Card>
           );
@@ -572,7 +591,7 @@ export default function TakerPage() {
 
   const assessment = db.assessments.get(id);
   const template = useMemo(
-    () => getTemplate(assessment?.templateId ?? ""),
+    () => resolveTemplate(assessment?.templateId ?? ""),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [assessment?.templateId, tick]
   );

@@ -7,89 +7,11 @@ import { db, nowIso, type ReportDoc } from "@/lib/store";
 import { useMode } from "@/lib/mode";
 import { Btn, Card, EmptyState, PageHeader, inputCls } from "@/components/ui";
 import ProdNotice from "@/components/ProdNotice";
-import { REPORT_LABELS, download, slug } from "@/lib/reports";
+import { REPORT_LABELS, download, slug, buildShareHtml } from "@/lib/reports";
+import { resolveTemplate } from "@/lib/customTemplates";
+import { renderMarkdown } from "@/components/MarkdownView";
 import AiDraftButton, { AiDraftBadge } from "@/components/AiDraftButton";
 import type { DraftSection } from "@/lib/draft";
-
-/* ── Tiny markdown renderer (~60 lines): headings, bold, lists, tables, hr.
- * No dependencies. Handles the flat markdown this app generates. ── */
-
-function inlineMd(text: string, key: string): React.ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((p, i) =>
-    p.startsWith("**") && p.endsWith("**") && p.length > 4 ? (
-      <strong key={`${key}-${i}`}>{p.slice(2, -2)}</strong>
-    ) : (
-      <React.Fragment key={`${key}-${i}`}>{p}</React.Fragment>
-    )
-  );
-}
-
-function renderMarkdown(md: string): React.ReactNode {
-  const lines = md.split("\n");
-  const out: React.ReactNode[] = [];
-  let k = 0;
-  const flushPara = (buf: string[]) => {
-    if (!buf.length) return;
-    const key = k++;
-    out.push(
-      <p key={key} className="my-2 text-[15px] leading-relaxed text-gray-800">
-        {inlineMd(buf.join(" "), `p${key}`)}
-      </p>
-    );
-    buf.length = 0;
-  };
-  const cells = (r: string) => r.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
-  let i = 0;
-  let para: string[] = [];
-  while (i < lines.length) {
-    const line = lines[i].trim();
-    if (!line) { flushPara(para); i++; continue; }
-    if (line.startsWith("|") && i + 1 < lines.length && /^\|[\s:|-]+\|$/.test(lines[i + 1].trim())) {
-      flushPara(para);
-      const head = cells(line); i += 2;
-      const rows: string[][] = [];
-      while (i < lines.length && lines[i].trim().startsWith("|")) { rows.push(cells(lines[i])); i++; }
-      const key = k++;
-      out.push(
-        <div key={key} className="my-3 overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead><tr>{head.map((h, j) => <th key={j} className="border border-gray-300 bg-gray-50 px-3 py-2 text-left font-semibold">{inlineMd(h, `th${key}${j}`)}</th>)}</tr></thead>
-            <tbody>{rows.map((r, ri) => <tr key={ri}>{r.map((c, ci) => <td key={ci} className="border border-gray-200 px-3 py-2 align-top text-gray-800">{inlineMd(c, `td${key}${ri}${ci}`)}</td>)}</tr>)}</tbody>
-          </table>
-        </div>
-      );
-      continue;
-    }
-    const h = line.match(/^(#{1,4})\s+(.*)/);
-    if (h) {
-      flushPara(para);
-      const lvl = h[1].length, key = k++;
-      const cls = lvl === 1 ? "mb-3 mt-1 text-2xl font-bold" : lvl === 2 ? "mb-2 mt-6 border-b border-gray-100 pb-1 text-xl font-bold" : lvl === 3 ? "mb-1 mt-4 text-base font-bold" : "mb-1 mt-3 text-sm font-bold";
-      out.push(React.createElement(`h${lvl}`, { key, className: cls }, inlineMd(h[2], `h${key}`)));
-      i++; continue;
-    }
-    if (/^---+$/.test(line)) { flushPara(para); out.push(<hr key={k++} className="my-4 border-gray-200" />); i++; continue; }
-    const ulm = line.match(/^[-*]\s+(.*)/);
-    const olm = line.match(/^\d+[.)]\s+(.*)/);
-    if (ulm || olm) {
-      flushPara(para);
-      const ordered = !!olm, items: string[] = [];
-      while (i < lines.length) {
-        const m = lines[i].trim().match(ordered ? /^\d+[.)]\s+(.*)/ : /^[-*]\s+(.*)/);
-        if (!m) break;
-        items.push(m[1]); i++;
-      }
-      const key = k++;
-      const Tag = ordered ? "ol" : "ul";
-      out.push(React.createElement(Tag, { key, className: `${ordered ? "list-decimal" : "list-disc"} my-2 space-y-1.5 pl-6 text-[15px] leading-relaxed text-gray-800` },
-        items.map((it, j) => <li key={j}>{inlineMd(it, `l${key}${j}`)}</li>)));
-      continue;
-    }
-    para.push(line); i++;
-  }
-  flushPara(para);
-  return <div>{out}</div>;
-}
 
 /* ── Page ── */
 
@@ -131,6 +53,25 @@ export default function ReportViewPage() {
     } catch {
       /* clipboard unavailable */
     }
+  };
+
+  const shareHtml = () => {
+    if (!doc) return;
+    const aid = doc.assessmentId;
+    const a = db.assessments.get(aid);
+    if (!a) return;
+    const html = buildShareHtml({
+      report: { ...doc, markdown: draft },
+      assessment: a,
+      findings: db.findings.filter((f) => f.assessmentId === aid),
+      equipment: db.equipment.filter((e) => e.assessmentId === aid),
+      template: resolveTemplate(a.templateId),
+    });
+    download(
+      `${slug(doc.title || REPORT_LABELS[doc.kind])}.html`,
+      html,
+      "text/html;charset=utf-8"
+    );
   };
 
   const aiSection: DraftSection =
@@ -306,6 +247,15 @@ export default function ReportViewPage() {
             }
           >
             ⬇ Download .md
+          </Btn>
+          <Link
+            href={`/reports/${doc.id}/print`}
+            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:flex-none"
+          >
+            🖨 Print / PDF
+          </Link>
+          <Btn variant="ghost" className="flex-1 sm:flex-none" onClick={shareHtml} title="One self-contained file — email it; the school opens it in any browser, no account needed.">
+            📧 Share HTML
           </Btn>
           {savedAt && (
             <span className="ml-auto text-xs text-gray-500">

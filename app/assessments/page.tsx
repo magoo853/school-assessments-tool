@@ -10,11 +10,10 @@ import {
   type AssessmentStatus,
 } from "@/lib/store";
 import {
-  TEMPLATES,
   DEFAULT_TEMPLATE_ID,
-  getTemplate,
   templateSize,
 } from "@/lib/templates";
+import { resolveTemplate, allTemplates } from "@/lib/customTemplates";
 import { useMode } from "@/lib/mode";
 import ProdNotice from "@/components/ProdNotice";
 import {
@@ -30,7 +29,7 @@ import {
 } from "@/components/ui";
 
 function templateName(id: string): string {
-  return getTemplate(id).name;
+  return resolveTemplate(id).name;
 }
 
 /** Last activity: latest response save wins, else completed/created. */
@@ -50,7 +49,7 @@ function updatedAt(a: Assessment): string {
 }
 
 function progress(a: Assessment): { answered: number; total: number } {
-  const total = templateSize(getTemplate(a.templateId));
+  const total = templateSize(resolveTemplate(a.templateId));
   const answered = db.responses.filter(
     (r) => r.assessmentId === a.id && r.answer !== null
   ).length;
@@ -73,6 +72,7 @@ function NewAssessmentModal({ onClose }: { onClose: () => void }) {
   const [weather, setWeather] = useState("");
   const [focusNotes, setFocusNotes] = useState("");
   const assessors = db.assessors.list();
+  const templates = allTemplates();
 
   const create = () => {
     if (!clientName.trim()) return;
@@ -122,14 +122,15 @@ function NewAssessmentModal({ onClose }: { onClose: () => void }) {
             value={templateId}
             onChange={(e) => setTemplateId(e.target.value)}
           >
-            {TEMPLATES.map((t) => (
+            {templates.map(({ template: t, custom }) => (
               <option key={t.id} value={t.id}>
                 {t.name}
+                {custom ? " (custom)" : ""}
               </option>
             ))}
           </select>
           <p className="mt-1 text-xs text-gray-500">
-            {getTemplate(templateId).description}
+            {resolveTemplate(templateId).description}
           </p>
         </Field>
         <Field label="Lead assessor">

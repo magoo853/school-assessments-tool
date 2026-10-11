@@ -25,7 +25,7 @@ import {
   responsesCsv,
   upsertReport,
 } from "@/lib/reports";
-import { getTemplate } from "@/lib/templates";
+import { resolveTemplate } from "@/lib/customTemplates";
 import { deriveFindings } from "@/lib/findings";
 import {
   buildHubExchange,
@@ -87,7 +87,7 @@ export default function ReportsPage() {
     const refreshed = db.findings.filter((f) => f.assessmentId === a.id);
     const responses = db.responses.filter((r) => r.assessmentId === a.id);
     const equipment = db.equipment.filter((e) => e.assessmentId === a.id);
-    const template = getTemplate(a.templateId);
+    const template = resolveTemplate(a.templateId);
 
     const markdown =
       kind === "aar"
