@@ -1,7 +1,8 @@
 /**
  * All-findings view: every finding across all assessments in one
- * filterable list. Risk chips + domain filter + text search; each row
- * drills into its assessment. Accepts ?risk=high|moderate|low to pre-filter.
+ * filterable list. Risk chips + client/school filter + domain filter + text
+ * search; each row drills into its assessment. Accepts
+ * ?risk=high|moderate|low and ?client=<name> to pre-filter.
  */
 "use client";
 
@@ -101,6 +102,8 @@ function FindingsInner() {
       : "all"
   );
   const [domainFilter, setDomainFilter] = useState("all");
+  const initialClient = searchParams.get("client");
+  const [clientFilter, setClientFilter] = useState(initialClient ?? "all");
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<FindingRow[]>([]);
 
@@ -120,10 +123,16 @@ function FindingsInner() {
     [mode]
   );
 
+  const clientOptions = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.clientName))).sort(),
+    [rows]
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       if (riskFilter !== "all" && r.finding.risk !== riskFilter) return false;
+      if (clientFilter !== "all" && r.clientName !== clientFilter) return false;
       if (domainFilter !== "all" && r.domainKey !== domainFilter) return false;
       if (q) {
         const hay =
@@ -132,7 +141,7 @@ function FindingsInner() {
       }
       return true;
     });
-  }, [rows, riskFilter, domainFilter, query]);
+  }, [rows, riskFilter, clientFilter, domainFilter, query]);
 
   return (
     <div>
@@ -161,7 +170,20 @@ function FindingsInner() {
             </button>
           ))}
         </div>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            aria-label="Filter by client or school"
+            className={inputCls}
+          >
+            <option value="all">All clients / schools</option>
+            {clientOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
           <select
             value={domainFilter}
             onChange={(e) => setDomainFilter(e.target.value)}
