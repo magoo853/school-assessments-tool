@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-50 text-gray-900 antialiased;
+}
+
+/* Brand theming: --brand* custom properties drive .btn-brand and the
+ * active nav item. Defaults below; a theme provider may override per client. */
+:root {
+  --brand: #1d4ed8;
+  --brand-dark: #1e40af;
+  --brand-contrast: #ffffff;
+}
+
+.btn-brand {
+  background-color: var(--brand);
+  color: var(--brand-contrast);
+}
+.btn-brand:hover {
+  background-color: var(--brand-dark);
+}
+.btn-brand:disabled {
+  opacity: 0.5;
+}
+
+aside nav a.bg-brand-active {
+  background-color: var(--brand);
+  color: var(--brand-contrast);
+}
