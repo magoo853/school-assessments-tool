@@ -11,6 +11,7 @@ import {
   type ReassessInfo,
 } from "@/lib/data";
 import { Card, PageHeader, Badge, RiskBadge, StatusPill, EmptyState } from "@/components/ui";
+import { FindingsRiskChart, AssessmentStatusDonut } from "@/components/DashboardCharts";
 import ProdNotice from "@/components/ProdNotice";
 
 const RISK_ORDER: Record<string, number> = { high: 0, moderate: 1, low: 2 };
@@ -27,6 +28,8 @@ interface Snapshot {
   topFindings: Finding[];
   assessorCount: number;
   cleryCount: number;
+  riskCounts: Record<string, number>;
+  statusCounts: Record<string, number>;
 }
 
 function loadSnapshot(): Snapshot {
@@ -56,6 +59,14 @@ function loadSnapshot(): Snapshot {
         (RISK_ORDER[a.risk] ?? 3) - (RISK_ORDER[b.risk] ?? 3),
     )
     .slice(0, 5);
+  const riskCounts: Record<string, number> = { high: 0, moderate: 0, low: 0 };
+  for (const f of db.findings.list()) {
+    if (f.risk in riskCounts) riskCounts[f.risk] += 1;
+  }
+  const statusCounts: Record<string, number> = { draft: 0, in_progress: 0, completed: 0 };
+  for (const a of db.assessments.list()) {
+    if (a.status in statusCounts) statusCounts[a.status] += 1;
+  }
   return {
     stats,
     upcoming,
@@ -63,6 +74,8 @@ function loadSnapshot(): Snapshot {
     topFindings,
     assessorCount: db.assessors.list().length,
     cleryCount: db.cleryReports.list().length,
+    riskCounts,
+    statusCounts,
   };
 }
 
@@ -78,10 +91,15 @@ function StatCard({
   return (
     <Link
       href={href}
-      className="block min-h-[44px] rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow"
+      className="group block min-h-[44px] rounded-2xl border border-slate-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.05),0_12px_32px_-16px_rgba(109,40,217,0.18)] transition-all hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-[0_16px_40px_-16px_rgba(109,40,217,0.35)]"
     >
-      <p className="text-3xl font-bold">{value}</p>
-      <p className="mt-1 text-sm text-gray-500">{label}</p>
+      <p className="text-3xl font-bold tracking-tight text-slate-900 group-hover:text-violet-700">
+        {value}
+      </p>
+      <p className="mt-1 flex items-center gap-1 text-sm text-slate-500">
+        {label}
+        <span aria-hidden className="text-violet-400 opacity-0 transition-opacity group-hover:opacity-100">→</span>
+      </p>
     </Link>
   );
 }
@@ -114,16 +132,52 @@ export default function DashboardPage() {
 
       {isProd && <ProdNotice />}
 
-      {/* Stat cards */}
+      {/* Stat cards — every number drills down */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Scheduled" value={s?.scheduled ?? 0} href="/schedule" />
-        <StatCard label="In progress" value={s?.inProgress ?? 0} href="/assessments" />
-        <StatCard label="Completed" value={s?.completed ?? 0} href="/reports" />
+        <StatCard
+          label="In progress"
+          value={s?.inProgress ?? 0}
+          href="/assessments?status=in_progress"
+        />
+        <StatCard
+          label="Completed"
+          value={s?.completed ?? 0}
+          href="/assessments?status=completed"
+        />
         <StatCard
           label="High-risk findings"
           value={s?.highRiskFindings ?? 0}
-          href="/reports"
+          href="#top-findings"
         />
+      </div>
+
+      {/* Charts */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-semibold text-slate-900">Findings by risk</h2>
+            <Link
+              href="/reports"
+              className="flex min-h-[44px] items-center text-sm font-medium text-violet-700 hover:underline"
+            >
+              Reports →
+            </Link>
+          </div>
+          <FindingsRiskChart counts={snap?.riskCounts ?? {}} />
+        </Card>
+        <Card>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-semibold text-slate-900">Assessment pipeline</h2>
+            <Link
+              href="/assessments"
+              className="flex min-h-[44px] items-center text-sm font-medium text-violet-700 hover:underline"
+            >
+              All assessments →
+            </Link>
+          </div>
+          <AssessmentStatusDonut counts={snap?.statusCounts ?? {}} />
+        </Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -133,7 +187,7 @@ export default function DashboardPage() {
             <h2 className="font-semibold">Upcoming assessments</h2>
             <Link
               href="/schedule"
-              className="flex min-h-[44px] items-center text-sm font-medium text-blue-700 hover:underline"
+              className="flex min-h-[44px] items-center text-sm font-medium text-violet-700 hover:underline"
             >
               Schedule →
             </Link>
@@ -149,21 +203,31 @@ export default function DashboardPage() {
             />
           ) : (
             <ul className="divide-y divide-gray-100">
-              {snap.upcoming.map(({ schedule, assessorName }) => (
-                <li key={schedule.id} className="flex items-center justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {schedule.clientName}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {schedule.date}
-                      {schedule.campus ? ` · ${schedule.campus}` : ""}
-                      {assessorName ? ` · ${assessorName}` : ""}
-                    </p>
-                  </div>
-                  <StatusPill status={schedule.status} />
-                </li>
-              ))}
+              {snap.upcoming.map(({ schedule, assessorName }) => {
+                const href = schedule.assessmentId
+                  ? `/assessments/${schedule.assessmentId}`
+                  : "/schedule";
+                return (
+                  <li key={schedule.id}>
+                    <Link
+                      href={href}
+                      className="flex min-h-[44px] items-center justify-between gap-3 rounded-lg py-3 transition-colors hover:bg-violet-50/50"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-900">
+                          {schedule.clientName}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {schedule.date}
+                          {schedule.campus ? ` · ${schedule.campus}` : ""}
+                          {assessorName ? ` · ${assessorName}` : ""}
+                        </p>
+                      </div>
+                      <StatusPill status={schedule.status} />
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>
@@ -174,7 +238,7 @@ export default function DashboardPage() {
             <h2 className="font-semibold">Reassessments due</h2>
             <Link
               href="/schedule"
-              className="flex min-h-[44px] items-center text-sm font-medium text-blue-700 hover:underline"
+              className="flex min-h-[44px] items-center text-sm font-medium text-violet-700 hover:underline"
             >
               View schedule →
             </Link>
@@ -191,18 +255,23 @@ export default function DashboardPage() {
           ) : (
             <ul className="divide-y divide-gray-100">
               {snap.reassess.map((r) => (
-                <li key={r.clientName} className="flex items-center justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{r.clientName}</p>
-                    <p className="text-xs text-gray-500">
-                      Last assessed {r.lastDate ?? "—"} · due {r.dueDate ?? "—"}
-                    </p>
-                  </div>
-                  {r.state === "overdue" ? (
-                    <Badge tone="red">Overdue</Badge>
-                  ) : (
-                    <Badge tone="yellow">Due soon</Badge>
-                  )}
+                <li key={r.clientName}>
+                  <Link
+                    href="/schedule"
+                    className="flex min-h-[44px] items-center justify-between gap-3 rounded-lg py-3 transition-colors hover:bg-violet-50/50"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-900">{r.clientName}</p>
+                      <p className="text-xs text-slate-500">
+                        Last assessed {r.lastDate ?? "—"} · due {r.dueDate ?? "—"}
+                      </p>
+                    </div>
+                    {r.state === "overdue" ? (
+                      <Badge tone="red">Overdue</Badge>
+                    ) : (
+                      <Badge tone="yellow">Due soon</Badge>
+                    )}
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -212,11 +281,11 @@ export default function DashboardPage() {
 
       {/* Top findings */}
       <Card>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold">Top findings</h2>
+        <div id="top-findings" className="mb-3 flex scroll-mt-24 items-center justify-between">
+          <h2 className="font-semibold text-slate-900">Top findings</h2>
           <Link
             href="/reports"
-            className="flex min-h-[44px] items-center text-sm font-medium text-blue-700 hover:underline"
+            className="flex min-h-[44px] items-center text-sm font-medium text-violet-700 hover:underline"
           >
             All reports →
           </Link>
@@ -235,16 +304,21 @@ export default function DashboardPage() {
             {snap.topFindings.map((f) => {
               const assessment = db.assessments.get(f.assessmentId);
               return (
-                <li key={f.id} className="flex items-start justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{f.gapText}</p>
-                    {assessment && (
-                      <p className="mt-0.5 text-xs text-gray-500">
-                        {assessment.clientName}
-                      </p>
-                    )}
-                  </div>
-                  <RiskBadge risk={f.risk} />
+                <li key={f.id}>
+                  <Link
+                    href={`/assessments/${f.assessmentId}`}
+                    className="flex min-h-[44px] items-start justify-between gap-3 rounded-lg py-3 transition-colors hover:bg-violet-50/50"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-900">{f.gapText}</p>
+                      {assessment && (
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {assessment.clientName}
+                        </p>
+                      )}
+                    </div>
+                    <RiskBadge risk={f.risk} />
+                  </Link>
                 </li>
               );
             })}

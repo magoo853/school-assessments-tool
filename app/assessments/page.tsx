@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   db,
   newAssessment,
   type Assessment,
+  type AssessmentStatus,
 } from "@/lib/store";
 import {
   TEMPLATES,
@@ -194,9 +195,31 @@ function NewAssessmentModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function AssessmentsPage() {
+  return (
+    <Suspense>
+      <AssessmentsInner />
+    </Suspense>
+  );
+}
+
+const STATUS_FILTERS: { key: string; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "draft", label: "Draft" },
+  { key: "in_progress", label: "In progress" },
+  { key: "completed", label: "Completed" },
+];
+
+function AssessmentsInner() {
   const [mode] = useMode();
   const [showNew, setShowNew] = useState(false);
   const [, setTick] = useState(0);
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get("status");
+  const [statusFilter, setStatusFilter] = useState<string>(
+    initialStatus && ["draft", "in_progress", "completed"].includes(initialStatus)
+      ? initialStatus
+      : "all"
+  );
 
   useEffect(() => {
     setTick((t) => t + 1);
@@ -204,6 +227,9 @@ export default function AssessmentsPage() {
 
   const assessments = db.assessments
     .list()
+    .filter((a: Assessment) =>
+      statusFilter === "all" ? true : a.status === (statusFilter as AssessmentStatus)
+    )
     .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
 
   return (
@@ -217,13 +243,34 @@ export default function AssessmentsPage() {
       />
       {mode === "prod" && <ProdNotice />}
 
+      {/* Status filter chips — also the drill-down target for dashboard stats */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {STATUS_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            onClick={() => setStatusFilter(f.key)}
+            aria-pressed={statusFilter === f.key}
+            className={`flex min-h-[44px] items-center rounded-full px-4 text-sm font-semibold transition-all ${
+              statusFilter === f.key
+                ? "bg-gradient-to-r from-violet-500 to-indigo-500 text-white shadow-[0_4px_14px_-4px_rgba(124,58,237,0.6)]"
+                : "border border-slate-200 bg-white text-slate-600 hover:border-violet-300 hover:text-violet-700"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {assessments.length === 0 ? (
         <EmptyState
-          title={mode === "prod" ? "No assessments yet" : "No assessments yet"}
+          title={mode === "prod" ? "No assessments yet" : statusFilter === "all" ? "No assessments yet" : "Nothing here"}
           body={
             mode === "prod"
               ? "The live database is not connected, so no assessments are stored here."
-              : "Start your first walkthrough — pick a template, assign a lead assessor, and go."
+              : statusFilter === "all"
+                ? "Start your first walkthrough — pick a template, assign a lead assessor, and go."
+                : `No ${STATUS_FILTERS.find((f) => f.key === statusFilter)?.label.toLowerCase()} assessments.`
           }
           action={<Btn onClick={() => setShowNew(true)}>+ New assessment</Btn>}
         />
