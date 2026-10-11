@@ -113,12 +113,14 @@ export function slug(s: string): string {
 }
 
 function assessorNames(a: Assessment): string {
-  const fromDb = db.assessors
+  const names = db.assessors
     .filter((x) => a.assessorIds.includes(x.id))
     .map((x) => x.name);
-  const names = [...fromDb];
-  const cover = (a.cover?.assessors ?? "").trim();
-  if (cover && !names.includes(cover)) names.push(cover);
+  const cover = (a.cover?.assessors ?? "")
+    .split(/[,;]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const n of cover) if (!names.includes(n)) names.push(n);
   return names.length ? names.join(", ") : "Not recorded";
 }
 

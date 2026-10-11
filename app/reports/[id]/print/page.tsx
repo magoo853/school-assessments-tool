@@ -81,7 +81,7 @@ export default function ReportPrintPage() {
         ...db.assessors
           .filter((x) => assessment.assessorIds.includes(x.id))
           .map((x) => x.name),
-        assessment.cover?.assessors?.trim(),
+        ...(assessment.cover?.assessors?.split(/[,;]/).map((s) => s.trim()) ?? []),
       ]
         .filter(Boolean)
         .filter((v, i, arr) => arr.indexOf(v) === i)
