@@ -27,6 +27,8 @@ import {
 } from "@/lib/store";
 
 import type { AssessmentTemplate } from "@/lib/templates";
+import { photosFor } from "./photos";
+import { renderMarkdownHtml } from "@/components/MarkdownView";
 
 export interface ReportCounts {
   total: number;
@@ -513,6 +515,123 @@ export function buildRecommendationsMarkdown(
   }
 
   return L.join("\n");
+}
+
+/* ──────────────────────────────
+ * Self-contained shareable HTML report.
+ *
+ * buildShareHtml() produces ONE .html file with inline CSS, the rendered
+ * report body, and photo evidence embedded as data URLs. A school can open
+ * it in any browser with no app and no account — the assessor emails the
+ * file. True expiring share *links* arrive with shared (Supabase) data;
+ * until then this file is the honest sharing path.
+ * ────────────────────────────── */
+
+function escAttr(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export interface ShareHtmlInput {
+  report: ReportDoc;
+  assessment: Assessment;
+  findings: Finding[];
+  equipment: EquipmentItem[];
+  template?: AssessmentTemplate | null;
+}
+
+export function buildShareHtml(input: ShareHtmlInput): string {
+  const { report, assessment: a, findings, equipment, template } = input;
+
+  const title = escAttr(report.title || REPORT_LABELS[report.kind]);
+  const date = assessmentDate(a);
+  const names = escAttr(assessorNames(a));
+  const client = escAttr(a.clientName);
+  const campus = escAttr(a.campus);
+  const templateName = escAttr(template?.name ?? "School safety assessment");
+  const reportDateStr = escAttr(report.updatedAt.slice(0, 10));
+  const body = renderMarkdownHtml(report.markdown);
+
+  const withPhotos = findings.filter((f) => (f.photoIds?.length ?? 0) > 0);
+  const photoSections = withPhotos
+    .map((f) => {
+      const photos = photosFor(f.photoIds);
+      if (!photos.length) return "";
+      const imgs = photos
+        .map(
+          (p) =>
+            `<figure><img src="${p.dataUrl}" alt="${escAttr(f.gapText)}"/><figcaption>${escAttr(f.gapText)} — ${riskLabel(f.risk)} risk</figcaption></figure>`
+        )
+        .join("\n");
+      return `<section class="photos"><h3>${escAttr(f.gapText)}</h3><div class="grid">${imgs}</div></section>`;
+    })
+    .join("\n");
+
+  const equipRows = equipment.length
+    ? `<section><h2>Equipment recommendations</h2><table><thead><tr><th>Item</th><th>Detail</th><th>Priority</th></tr></thead><tbody>${equipment
+        .map(
+          (e) =>
+            `<tr><td>${escAttr(e.name)}</td><td>${escAttr(e.detail)}</td><td>${riskLabel(e.priority)}</td></tr>`
+        )
+        .join("")}</tbody></table></section>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>${title} — ${client}</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; background: #f1f5f9; margin: 0; padding: 24px 16px; line-height: 1.6; }
+  .doc { max-width: 860px; margin: 0 auto; background: #fff; border-radius: 16px; box-shadow: 0 12px 40px -16px rgba(109,40,217,.25); overflow: hidden; }
+  .banner { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; padding: 32px; }
+  .banner h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.02em; }
+  .banner p { margin: 2px 0; font-size: 14px; opacity: .92; }
+  .banner .prepared { margin-top: 12px; font-size: 13px; opacity: .85; }
+  .content { padding: 32px; }
+  .content h1 { font-size: 24px; margin: 8px 0 12px; letter-spacing: -0.02em; }
+  .content h2 { font-size: 19px; margin: 28px 0 8px; padding-bottom: 6px; border-bottom: 2px solid #ede9fe; }
+  .content h3 { font-size: 16px; margin: 20px 0 6px; }
+  .content h4 { font-size: 14px; margin: 16px 0 4px; }
+  .content p, .content li { font-size: 15px; }
+  .content ul, .content ol { padding-left: 24px; }
+  .content li { margin: 6px 0; }
+  .content table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  .content th, .content td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; vertical-align: top; }
+  .content th { background: #f8fafc; }
+  .content hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
+  .photos .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin: 12px 0 24px; }
+  .photos figure { margin: 0; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+  .photos img { width: 100%; height: 180px; object-fit: cover; display: block; }
+  .photos figcaption { font-size: 12px; color: #64748b; padding: 8px 10px; }
+  .footer { padding: 20px 32px; background: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; }
+  @media print { body { background: #fff; padding: 0; } .doc { box-shadow: none; border-radius: 0; } .banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="banner">
+    <h1>${title}</h1>
+    <p><strong>${client}</strong> — ${campus}</p>
+    <p>Assessment date: ${date} · Report date: ${reportDateStr}</p>
+    <p>Template: ${templateName}</p>
+    <p class="prepared">Prepared by ${names}</p>
+  </div>
+  <div class="content">
+    ${body}
+    ${photoSections ? `<h2>Photo evidence</h2>\n${photoSections}` : ""}
+    ${equipRows}
+  </div>
+  <div class="footer">Shared as a self-contained file — opens in any browser, no account needed. Generated by the School Assessments Tool.</div>
+</div>
+</body>
+</html>`;
 }
 
 /* ──────────────────────────────

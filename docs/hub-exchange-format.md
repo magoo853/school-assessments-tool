@@ -34,7 +34,7 @@ creates its own `assessment_templates` rows).
 {
   "key": "isc42",                          // stable template key
   "name": "42-Point ISC-Aligned Walkthrough",
-  "stateCode": "ISC",                      // ISC | FL | LA | GEN
+  "stateCode": "ISC",                      // ISC | FL | LA | GEN | CUSTOM (assessor-built templates)
   "version": "1",
   "domains": [
     { "name": "Perimeter, Fencing & Gates",

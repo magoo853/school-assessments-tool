@@ -14,9 +14,32 @@ const NAV = [
   { href: "/clients", label: "Clients", icon: "🏫" },
   { href: "/schedule", label: "Schedule", icon: "🗓️" },
   { href: "/assessors", label: "Assessors", icon: "👥" },
+  { href: "/templates", label: "Templates", icon: "📝" },
   { href: "/reports", label: "Reports & Exports", icon: "📄" },
   { href: "/policies", label: "Policy Docs", icon: "📚" },
 ];
+
+/** Small "Offline" pill in the header when the device has no signal. */
+function OfflineBadge() {
+  const [online, setOnline] = useState(true);
+  useEffect(() => {
+    setOnline(typeof navigator === "undefined" ? true : navigator.onLine);
+    const goOnline = () => setOnline(true);
+    const goOffline = () => setOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
+  if (online) return null;
+  return (
+    <span className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 text-xs font-bold text-amber-300">
+      <span aria-hidden>📡</span> Offline
+    </span>
+  );
+}
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -141,6 +164,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             School <span className="text-gradient">Assessments</span>{" "}
             <span className="font-normal text-slate-400">Tool</span>
           </p>
+          <OfflineBadge />
           {/* Demo / Prod segmented control */}
           <div className="ml-auto">
             <div

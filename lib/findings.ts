@@ -11,7 +11,8 @@
  */
 
 import { db, uid, type Finding, type Risk } from "./store";
-import { getTemplate, getCheckpoint } from "./templates";
+import { getCheckpoint } from "./templates";
+import { resolveTemplate } from "./customTemplates";
 
 const GENERIC_REC =
   "Address this gap in the campus safety improvement plan, prioritized by its risk rating.";
@@ -58,7 +59,7 @@ function equipmentName(keyword: string): string {
 export function deriveFindings(assessmentId: string): Finding[] {
   const assessment = db.assessments.get(assessmentId);
   if (!assessment) return [];
-  const template = getTemplate(assessment.templateId);
+  const template = resolveTemplate(assessment.templateId);
 
   // Replace existing findings for this assessment.
   db.findings

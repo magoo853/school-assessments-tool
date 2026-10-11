@@ -94,6 +94,7 @@ aside nav a.bg-brand-active {
   }
   .bar-gradient,
   .btn-brand,
+  .print-banner,
   aside nav a.bg-brand-active {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;

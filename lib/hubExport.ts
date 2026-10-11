@@ -16,7 +16,8 @@ import {
   type Assessment,
   type AssessmentStatus,
 } from "@/lib/store";
-import { getTemplate, TEMPLATES } from "@/lib/templates";
+import { TEMPLATES } from "@/lib/templates";
+import { resolveTemplate } from "@/lib/customTemplates";
 
 export const HUB_EXCHANGE_FORMAT = "sat-hub-exchange";
 export const HUB_EXCHANGE_VERSION = 1;
@@ -111,11 +112,11 @@ const TEMPLATE_VERSIONS: Record<string, string> = {
 };
 
 function exportTemplate(id: string): ExchangeTemplate {
-  const t = getTemplate(id);
+  const t = resolveTemplate(id);
   return {
     key: t.id,
     name: t.name,
-    stateCode: TEMPLATE_STATE_CODES[t.id] ?? "GEN",
+    stateCode: t.id.startsWith("ct_") ? "CUSTOM" : (TEMPLATE_STATE_CODES[t.id] ?? "GEN"),
     version: TEMPLATE_VERSIONS[t.id] ?? "1",
     domains: t.domains.map((d) => ({
       name: d.name,
@@ -130,7 +131,7 @@ function assessorName(id: string | undefined, assessors: { id: string; name: str
 }
 
 function exportAssessment(a: Assessment): ExchangeAssessment {
-  const template = getTemplate(a.templateId);
+  const template = resolveTemplate(a.templateId);
   const assessors = db.assessors.list();
   const responses = db.responses.filter((r) => r.assessmentId === a.id && r.answer !== null);
 
