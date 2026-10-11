@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import { db, uid } from "@/lib/store";
 import type { Assessor, ClearanceStatus } from "@/lib/store";
 import { useMode } from "@/lib/mode";
+import { assessorWorkload, type AssessorWorkload } from "@/lib/data";
 import {
   Card,
   PageHeader,
@@ -149,6 +150,7 @@ function clearanceInfo(a: Assessor): {
 
 function AssessorCard({
   assessor,
+  workload,
   expanded,
   onToggle,
   onEdit,
@@ -156,6 +158,7 @@ function AssessorCard({
   onCheck,
 }: {
   assessor: AssessorRow;
+  workload: AssessorWorkload;
   expanded: boolean;
   onToggle: () => void;
   onEdit: () => void;
@@ -194,6 +197,12 @@ function AssessorCard({
                 exp. {formatDate(a.clearanceExpiry)}
               </span>
             )}
+          </div>
+          {/* Workload */}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Badge tone="cyan">🗓 {workload.scheduled} scheduled</Badge>
+            <Badge tone="violet">🔄 {workload.inProgress} in progress</Badge>
+            <Badge tone="green">✅ {workload.completed} completed</Badge>
           </div>
         </div>
       </div>
@@ -289,6 +298,22 @@ export default function AssessorsPage() {
     );
   }, [rows, query]);
 
+  const workloads = useMemo(() => {
+    const m = new Map<string, AssessorWorkload>();
+    for (const a of rows) m.set(a.id, assessorWorkload(a.id));
+    return m;
+  }, [rows, mode]);
+
+  const teamTotals = useMemo(() => {
+    const t = { scheduled: 0, inProgress: 0, completed: 0 };
+    for (const w of workloads.values()) {
+      t.scheduled += w.scheduled;
+      t.inProgress += w.inProgress;
+      t.completed += w.completed;
+    }
+    return t;
+  }, [workloads]);
+
   const openAdd = () => {
     setEditing(null);
     setForm(blankForm());
@@ -381,6 +406,22 @@ export default function AssessorsPage() {
         actions={<Btn onClick={openAdd}>＋ Add assessor</Btn>}
       />
 
+      {/* Team workload summary */}
+      <Card className="mb-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <p className="text-sm font-semibold text-slate-900">Team workload</p>
+          <p className="text-sm text-slate-600">
+            🗓 <span className="font-bold text-slate-900">{teamTotals.scheduled}</span> upcoming visits
+          </p>
+          <p className="text-sm text-slate-600">
+            🔄 <span className="font-bold text-slate-900">{teamTotals.inProgress}</span> in progress
+          </p>
+          <p className="text-sm text-slate-600">
+            ✅ <span className="font-bold text-slate-900">{teamTotals.completed}</span> completed
+          </p>
+        </div>
+      </Card>
+
       <input
         type="search"
         value={query}
@@ -406,6 +447,7 @@ export default function AssessorsPage() {
             <AssessorCard
               key={a.id}
               assessor={a}
+              workload={workloads.get(a.id) ?? { scheduled: 0, inProgress: 0, completed: 0 }}
               expanded={expandedIds.has(a.id)}
               onToggle={() => toggleExpanded(a.id)}
               onEdit={() => openEdit(a)}

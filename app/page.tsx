@@ -128,6 +128,14 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard"
         subtitle="Assessment pipeline, upcoming visits, and findings at a glance."
+        actions={
+          <Link
+            href="/summary"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:border-violet-300 hover:text-violet-700"
+          >
+            🖨 Print summary
+          </Link>
+        }
       />
 
       {isProd && <ProdNotice />}
@@ -148,7 +156,7 @@ export default function DashboardPage() {
         <StatCard
           label="High-risk findings"
           value={s?.highRiskFindings ?? 0}
-          href="#top-findings"
+          href="/findings?risk=high"
         />
       </div>
 
@@ -158,10 +166,10 @@ export default function DashboardPage() {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-semibold text-slate-900">Findings by risk</h2>
             <Link
-              href="/reports"
+              href="/findings"
               className="flex min-h-[44px] items-center text-sm font-medium text-violet-700 hover:underline"
             >
-              Reports →
+              All findings →
             </Link>
           </div>
           <FindingsRiskChart counts={snap?.riskCounts ?? {}} />

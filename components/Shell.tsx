@@ -10,6 +10,8 @@ import { installSeed } from "@/lib/seed";
 const NAV = [
   { href: "/", label: "Dashboard", icon: "📊" },
   { href: "/assessments", label: "Assessments", icon: "📋" },
+  { href: "/findings", label: "Findings", icon: "🔍" },
+  { href: "/clients", label: "Clients", icon: "🏫" },
   { href: "/schedule", label: "Schedule", icon: "🗓️" },
   { href: "/assessors", label: "Assessors", icon: "👥" },
   { href: "/reports", label: "Reports & Exports", icon: "📄" },
@@ -60,8 +62,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   }, []);
   return (
     <div className="min-h-screen">
-      {/* Desktop sidebar — dark chrome */}
-      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-[#0B1120] md:flex">
+      {/* Desktop sidebar — dark chrome (hidden in print) */}
+      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-[#0B1120] md:flex print:hidden">
         <div className="chrome-glow flex h-20 items-center gap-3 border-b border-white/10 px-5">
           <span
             aria-hidden
@@ -90,9 +92,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer (hidden in print) */}
       {drawerOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-0 z-40 md:hidden print:hidden">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setDrawerOpen(false)}
@@ -126,8 +128,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Main column */}
-      <div className="md:pl-64">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-[#0B1120]/90 px-4 backdrop-blur-md">
+      <div className="md:pl-64 print:pl-0">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-[#0B1120]/90 px-4 backdrop-blur-md print:hidden">
           <button
             className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white md:hidden"
             onClick={() => setDrawerOpen(true)}

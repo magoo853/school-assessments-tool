@@ -54,3 +54,47 @@ export function getReassessment(clientName: string): ReassessInfo {
   const state: ReassessState = diffDays < 0 ? "overdue" : diffDays <= 90 ? "due-soon" : "ok";
   return { clientName, lastDate, dueDate, state };
 }
+
+/**
+ * Transparent safety score for one assessment.
+ * Formula: 100 − 10 per high-risk finding − 5 per moderate − 2 per low, floored at 0.
+ * Shown verbatim on the client history page so the number is auditable.
+ */
+export interface SafetyScore {
+  score: number;
+  high: number;
+  moderate: number;
+  low: number;
+}
+
+export function safetyScore(assessmentId: string): SafetyScore {
+  const findings = db.findings.filter((f) => f.assessmentId === assessmentId);
+  const high = findings.filter((f) => f.risk === "high").length;
+  const moderate = findings.filter((f) => f.risk === "moderate").length;
+  const low = findings.filter((f) => f.risk === "low").length;
+  const score = Math.max(0, 100 - 10 * high - 5 * moderate - 2 * low);
+  return { score, high, moderate, low };
+}
+
+/** Per-assessor workload across schedules and assessments. */
+export interface AssessorWorkload {
+  scheduled: number;
+  inProgress: number;
+  completed: number;
+}
+
+export function assessorWorkload(assessorId: string): AssessorWorkload {
+  const onAssessment = (a: { assessorIds: string[]; leadAssessorId?: string }) =>
+    a.leadAssessorId === assessorId || a.assessorIds.includes(assessorId);
+  return {
+    scheduled: db.schedules.filter(
+      (s) => s.assessorId === assessorId && s.status === "scheduled"
+    ).length,
+    inProgress: db.assessments.filter(
+      (a) => a.status === "in_progress" && onAssessment(a)
+    ).length,
+    completed: db.assessments.filter(
+      (a) => a.status === "completed" && onAssessment(a)
+    ).length,
+  };
+}
