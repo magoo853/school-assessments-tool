@@ -3,7 +3,8 @@
  *
  * localStorage-backed tables shaped like the future Supabase schema
  * (assessments, responses, findings, reports, equipment, assessors,
- * schedules, clery_reports, clery_stats, policy_docs).
+ * schedules, clery_reports, policy_docs, custom_templates; photos live in
+ * their own table via lib/photos.ts).
  *
  * RULES for feature code:
  * - Every page that touches data is a client component ("use client").
@@ -54,6 +55,9 @@ export interface ResponseRow {
   risk: Risk | null;
   note: string;
   photoRef: string;
+  /** Photo evidence ids → lib/photos.ts (sat_photos table). Optional for
+   *  backward compatibility with rows stored before photo support. */
+  photoIds?: string[];
 }
 
 export interface Finding {
@@ -65,6 +69,8 @@ export interface Finding {
   risk: Risk;
   note: string;
   recommendation: string;
+  /** Photo evidence ids → lib/photos.ts (sat_photos table). */
+  photoIds?: string[];
 }
 
 export interface EquipmentItem {
@@ -154,6 +160,21 @@ export interface PolicyDoc {
   updatedAt: string;
 }
 
+/**
+ * Assessor-built assessment template. Same domain/checkpoint shape as the
+ * built-in templates (see lib/templates.ts) so every consumer — walkthrough,
+ * reports, hub export — treats them identically. Custom ids use the "ct_"
+ * prefix to distinguish them from built-in ids ("isc42", "fl-fssat", "la").
+ */
+export interface CustomTemplate {
+  id: ID;
+  name: string;
+  description: string;
+  domains: { id: string; name: string; checkpoints: { key: string; num: string; text: string; gap: string; rec: string }[] }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 function canStore(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
@@ -212,6 +233,7 @@ export const db = {
   schedules: new Table<ScheduleItem>("schedules"),
   cleryReports: new Table<CleryReport>("clery_reports"),
   policyDocs: new Table<PolicyDoc>("policy_docs"),
+  customTemplates: new Table<CustomTemplate>("custom_templates"),
 };
 
 const SEED_FLAG = "sat_seeded_v1";
