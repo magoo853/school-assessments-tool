@@ -27,6 +27,11 @@ import {
 } from "@/lib/reports";
 import { getTemplate } from "@/lib/templates";
 import { deriveFindings } from "@/lib/findings";
+import {
+  buildHubExchange,
+  exchangeFilename,
+  HUB_EXCHANGE_VERSION,
+} from "@/lib/hubExport";
 
 const KIND_ICONS: Record<ReportKind, string> = {
   aar: "📋",
@@ -56,6 +61,7 @@ function fmtUpdated(iso: string): string {
 export default function ReportsPage() {
   const [mode] = useMode();
   const [tick, setTick] = useState(0);
+  const [hubScope, setHubScope] = useState<"completed" | "all">("completed");
 
   const assessments = useMemo<Assessment[]>(() => {
     if (mode === "prod") return [];
@@ -267,6 +273,57 @@ export default function ReportsPage() {
             📥 Assessments CSV
           </Btn>
         </div>
+      </Card>
+
+      {/* Code Red Hub exchange export */}
+      <Card>
+        <h2 className="font-semibold">Export for Code Red Hub</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Downloads a JSON package the Code Red Hub can import directly —
+          assessments, responses, findings, equipment recommendations,
+          reports, and schedules. Take your data with you if you adopt the
+          Hub later.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="hub-export-scope"
+              checked={hubScope === "completed"}
+              onChange={() => setHubScope("completed")}
+            />
+            Completed assessments
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="hub-export-scope"
+              checked={hubScope === "all"}
+              onChange={() => setHubScope("all")}
+            />
+            All assessments
+          </label>
+        </div>
+        <Btn
+          variant="ghost"
+          className="mt-3 justify-start"
+          onClick={() => {
+            const pkg = buildHubExchange(hubScope === "completed");
+            download(
+              exchangeFilename(),
+              JSON.stringify(pkg, null, 2),
+              "application/json;charset=utf-8"
+            );
+          }}
+        >
+          📦 Download Hub export (.json)
+        </Btn>
+        <p className="mt-2 text-xs text-gray-400">
+          {hubScope === "completed"
+            ? `${db.assessments.filter((a) => a.status === "completed").length} completed assessment(s)`
+            : `${db.assessments.list().length} assessment(s)`}{" "}
+          · {db.schedules.list().length} schedule item(s) · format sat-hub-exchange v{HUB_EXCHANGE_VERSION}
+        </p>
       </Card>
     </div>
   );
