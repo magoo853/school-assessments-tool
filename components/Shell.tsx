@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getMode, useMode, onModeChange } from "@/lib/mode";
-import { ensureSeed, clearAllData } from "@/lib/store";
+import { db, ensureSeed, clearAllData } from "@/lib/store";
 import { installSeed } from "@/lib/seed";
+import { useProfile, firstNameOf } from "@/lib/profile";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: "📊" },
@@ -18,7 +19,64 @@ const NAV = [
   { href: "/reports", label: "Reports & Exports", icon: "📄" },
   { href: "/policies", label: "Policy Docs", icon: "📚" },
   { href: "/integrations", label: "Integrations", icon: "🔌" },
+  { href: "/profile", label: "My Profile", icon: "👤" },
 ];
+
+/** Profile chip in the header — avatar + first name, links to /profile. */
+function ProfileChip() {
+  const [profile] = useProfile();
+  const photo = profile?.assessorId
+    ? db.assessors.get(profile.assessorId)?.photo
+    : undefined;
+  if (!profile) {
+    return (
+      <Link
+        href="/profile"
+        className="flex min-h-[44px] items-center gap-2 rounded-xl px-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
+      >
+        <span
+          aria-hidden
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-base"
+        >
+          👤
+        </span>
+        <span className="hidden lg:inline">Set up profile</span>
+      </Link>
+    );
+  }
+  const initials = profile.name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+  return (
+    <Link
+      href="/profile"
+      className="flex min-h-[44px] items-center gap-2 rounded-xl px-2 transition-colors hover:bg-white/10"
+      aria-label={`My profile — ${profile.name}`}
+    >
+      {photo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photo}
+          alt=""
+          className="h-9 w-9 rounded-full border border-white/20 object-cover"
+        />
+      ) : (
+        <span
+          aria-hidden
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-xs font-bold text-white"
+        >
+          {initials}
+        </span>
+      )}
+      <span className="hidden text-sm font-semibold text-white lg:inline">
+        {firstNameOf(profile.name)}
+      </span>
+    </Link>
+  );
+}
 
 /** Small "Offline" pill in the header when the device has no signal. */
 function OfflineBadge() {
@@ -190,6 +248,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               ))}
             </div>
           </div>
+          <ProfileChip />
         </header>
         <main className="mx-auto max-w-6xl p-4 md:p-6">{children}</main>
       </div>

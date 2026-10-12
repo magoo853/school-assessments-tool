@@ -5,6 +5,7 @@ import Link from "next/link";
 import { db } from "@/lib/store";
 import type { Finding, ScheduleItem } from "@/lib/store";
 import { useMode, onModeChange } from "@/lib/mode";
+import { useProfile, firstNameOf } from "@/lib/profile";
 import {
   getDashboardStats,
   getReassessment,
@@ -198,6 +199,7 @@ function StatCard({
 
 export default function DashboardPage() {
   const [mode] = useMode();
+  const [profile] = useProfile();
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [onboardDismissed, setOnboardDismissed] = useState(false);
 
@@ -241,7 +243,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Dashboard"
+        title={profile ? `Hi, ${firstNameOf(profile.name)}` : "Dashboard"}
         subtitle="Assessment pipeline, upcoming visits, and findings at a glance."
         actions={
           <Link
@@ -254,6 +256,24 @@ export default function DashboardPage() {
       />
 
       {isProd && <ProdNotice />}
+
+      {!isProd && !profile && (
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-slate-600">
+              👋 <span className="font-semibold text-slate-900">Make it yours.</span>{" "}
+              Set up your profile so the app greets you by name and knows
+              who&apos;s working.
+            </p>
+            <Link
+              href="/profile"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_4px_14px_-4px_rgba(124,58,237,0.6)]"
+            >
+              Set up profile →
+            </Link>
+          </div>
+        </Card>
+      )}
 
       {showOnboarding && <OnboardingCard onDismiss={dismissOnboarding} />}
 
