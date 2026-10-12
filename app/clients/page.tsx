@@ -7,8 +7,9 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { db, type Assessment } from "@/lib/store";
 import { resolveTemplate } from "@/lib/customTemplates";
 import { useMode } from "@/lib/mode";
@@ -118,9 +119,19 @@ function ScoreTrend({ entries }: { entries: TimelineEntry[] }) {
 }
 
 export default function ClientsPage() {
+  return (
+    <Suspense>
+      <ClientsInner />
+    </Suspense>
+  );
+}
+
+function ClientsInner() {
   const [mode] = useMode();
   const [tick, setTick] = useState(0);
-  const [client, setClient] = useState("all");
+  const searchParams = useSearchParams();
+  const initialClient = searchParams.get("client");
+  const [client, setClient] = useState(initialClient ?? "all");
 
   useEffect(() => {
     setTick((t) => t + 1);

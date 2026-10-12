@@ -4,6 +4,8 @@
  */
 "use client";
 
+import Link from "next/link";
+
 const RISK_META = [
   { key: "high", label: "High", color: "#f43f5e" },
   { key: "moderate", label: "Moderate", color: "#f59e0b" },
@@ -24,7 +26,11 @@ export function FindingsRiskChart({
           const v = counts[r.key] ?? 0;
           const pct = Math.round((v / max) * 100);
           return (
-            <div key={r.key}>
+            <Link
+              key={r.key}
+              href={`/findings?risk=${r.key}`}
+              className="block rounded-lg transition-colors hover:bg-violet-50/50"
+            >
               <div className="mb-1 flex items-center justify-between text-sm">
                 <span className="font-medium text-slate-700">{r.label}</span>
                 <span className="font-bold text-slate-900">{v}</span>
@@ -35,7 +41,7 @@ export function FindingsRiskChart({
                   style={{ width: `${pct}%`, background: r.color }}
                 />
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>
@@ -98,14 +104,18 @@ export function AssessmentStatusDonut({
       </div>
       <div className="space-y-2.5">
         {segs.map((s) => (
-          <div key={s.key} className="flex items-center gap-2 text-sm">
+          <Link
+            key={s.key}
+            href={`/assessments?status=${s.key}`}
+            className="flex items-center gap-2 rounded-lg text-sm transition-colors hover:bg-violet-50/50"
+          >
             <span
               className="h-2.5 w-2.5 rounded-full"
               style={{ background: s.color }}
             />
             <span className="text-slate-600">{s.label}</span>
             <span className="ml-auto pl-4 font-bold text-slate-900">{s.value}</span>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

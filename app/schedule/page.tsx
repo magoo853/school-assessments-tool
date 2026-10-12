@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { db, newAssessment, uid, type ScheduleItem } from "@/lib/store";
 import { useMode } from "@/lib/mode";
 import {
@@ -240,7 +241,12 @@ function ScheduleRow({
       <li className="border-b border-gray-100 px-4 py-4 last:border-0 md:px-5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="font-semibold text-gray-900">{item.clientName}</p>
+            <Link
+              href={`/clients?client=${encodeURIComponent(item.clientName)}`}
+              className="font-semibold text-gray-900 hover:text-violet-700 hover:underline"
+            >
+              {item.clientName}
+            </Link>
             <p className="mt-0.5 text-sm text-gray-500">
               {item.campus ? `${item.campus} · ` : ""}
               {fmtDate(item.date)}
@@ -365,19 +371,21 @@ function ReassessmentPanel() {
       </p>
       <ul className="mt-3 divide-y divide-gray-100">
         {rows.map((r) => (
-          <li
-            key={r.client}
-            className="flex flex-wrap items-center justify-between gap-2 py-3"
-          >
-            <div>
-              <p className="font-medium text-gray-900">{r.client}</p>
-              <p className="mt-0.5 text-sm text-gray-500">
-                {r.lastDate
-                  ? `Last completed ${fmtDate(r.lastDate)} · Due ${r.dueDate ? fmtDate(r.dueDate) : "—"}`
-                  : "No completed assessment on record"}
-              </p>
-            </div>
-            <Badge tone={toneFor(r.state)}>{labelFor(r.state)}</Badge>
+          <li key={r.client}>
+            <Link
+              href={`/clients?client=${encodeURIComponent(r.client)}`}
+              className="flex min-h-[44px] flex-wrap items-center justify-between gap-2 rounded-lg py-3 transition-colors hover:bg-violet-50/50"
+            >
+              <div>
+                <p className="font-medium text-gray-900">{r.client}</p>
+                <p className="mt-0.5 text-sm text-gray-500">
+                  {r.lastDate
+                    ? `Last completed ${fmtDate(r.lastDate)} · Due ${r.dueDate ? fmtDate(r.dueDate) : "—"}`
+                    : "No completed assessment on record"}
+                </p>
+              </div>
+              <Badge tone={toneFor(r.state)}>{labelFor(r.state)}</Badge>
+            </Link>
           </li>
         ))}
       </ul>
@@ -388,19 +396,36 @@ function ReassessmentPanel() {
 /* ---------------- Page ---------------- */
 
 export default function SchedulePage() {
+  return (
+    <Suspense>
+      <ScheduleInner />
+    </Suspense>
+  );
+}
+
+function ScheduleInner() {
   const [mode] = useMode();
   const [, force] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [view, setView] = useState<"list" | "calendar">("list");
+  const searchParams = useSearchParams();
+  const assessorFilter = searchParams.get("assessor");
   const refresh = () => force((n) => n + 1);
 
   const items = useMemo(() => db.schedules.list(), []); // re-read each render via refresh
+  const matchesAssessor = (s: ScheduleItem) =>
+    !assessorFilter || s.assessorId === assessorFilter;
   const upcoming = items
     .filter((s) => s.status === "scheduled" || s.status === "in_progress")
+    .filter(matchesAssessor)
     .sort((a, b) => a.date.localeCompare(b.date) || a.clientName.localeCompare(b.clientName));
   const history = items
     .filter((s) => s.status !== "scheduled" && s.status !== "in_progress")
+    .filter(matchesAssessor)
     .sort((a, b) => b.date.localeCompare(a.date) || a.clientName.localeCompare(b.clientName));
+  const filterAssessorName = assessorFilter
+    ? db.assessors.get(assessorFilter)?.name
+    : null;
 
   if (mode === "prod") {
     return (
@@ -427,6 +452,22 @@ export default function SchedulePage() {
 
       <ReassessmentPanel />
 
+      {/* Active assessor filter */}
+      {assessorFilter && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-3 py-2 text-sm font-semibold text-violet-800">
+            👤 {filterAssessorName ?? "Assessor"}
+            <Link
+              href="/schedule"
+              aria-label="Clear assessor filter"
+              className="flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full hover:bg-violet-200"
+            >
+              ✕
+            </Link>
+          </span>
+        </div>
+      )}
+
       {/* List / Calendar toggle */}
       <div className="flex gap-1 rounded-full border border-gray-200 bg-white p-1 self-start">
         {(["list", "calendar"] as const).map((v) => (
@@ -446,7 +487,7 @@ export default function SchedulePage() {
       </div>
 
       {view === "calendar" ? (
-        <ScheduleCalendar items={items} />
+        <ScheduleCalendar items={items.filter(matchesAssessor)} />
       ) : (
         <>
           <Card className="p-0 md:p-0">

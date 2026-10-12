@@ -14,6 +14,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { db, uid } from "@/lib/store";
 import type { Assessor, ClearanceStatus } from "@/lib/store";
 import { useMode } from "@/lib/mode";
@@ -188,7 +189,12 @@ function AssessorCard({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-base font-bold text-gray-900">{a.name}</h2>
+          <Link
+            href={`/schedule?assessor=${a.id}`}
+            className="truncate text-base font-bold text-gray-900 hover:text-violet-700 hover:underline"
+          >
+            {a.name}
+          </Link>
           {a.title && <p className="truncate text-sm text-gray-500">{a.title}</p>}
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <Badge tone={badge.tone}>{badge.label}</Badge>
@@ -198,12 +204,16 @@ function AssessorCard({
               </span>
             )}
           </div>
-          {/* Workload */}
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          {/* Workload — drills to the assessor's schedule */}
+          <Link
+            href={`/schedule?assessor=${a.id}`}
+            className="mt-2 flex flex-wrap gap-1.5 rounded-lg transition-colors hover:bg-violet-50/50"
+            aria-label={`${a.name}'s schedule`}
+          >
             <Badge tone="cyan">🗓 {workload.scheduled} scheduled</Badge>
             <Badge tone="violet">🔄 {workload.inProgress} in progress</Badge>
             <Badge tone="green">✅ {workload.completed} completed</Badge>
-          </div>
+          </Link>
         </div>
       </div>
 
