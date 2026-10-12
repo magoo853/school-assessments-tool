@@ -1,13 +1,12 @@
 "use client";
 
 /**
- * FSL determination wizard — ISC RMP (2021), Section 4, Step 1.
+ * FSL determination — ISC RMP (2021), Section 4.
  *
- * Rendered at the top of the assessment walkthrough: the Facility
- * Security Level is determined BEFORE the vulnerability walkthrough,
- * because it sets the baseline Level of Protection everything is
- * measured against. For non-federal facilities the result is labeled
- * "FSL-equivalent".
+ * Gated by a single checkbox at the top of the assessment: "This is a
+ * federal facility". The determination section only appears when that
+ * box is checked — the FSL sets the baseline Level of Protection the
+ * federal assessment is measured against.
  */
 
 import { useMemo, useState } from "react";
@@ -101,7 +100,6 @@ export default function FslWizard({ assessmentId }: { assessmentId: string }) {
   const [assessedBy, setAssessedBy] = useState(existing?.assessedBy ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<FslRecord | undefined>(existing);
-  const [open, setOpen] = useState(!existing);
 
   const popNum = population.trim() === "" ? null : Number(population);
   const sizeNum = size.trim() === "" ? null : Number(size);
@@ -180,7 +178,6 @@ export default function FslWizard({ assessmentId }: { assessmentId: string }) {
     };
     db.fslRecords.upsert(rec);
     setSaved(rec);
-    setOpen(false);
   };
 
   const setNote = (k: keyof typeof notes, v: string) =>
@@ -188,40 +185,38 @@ export default function FslWizard({ assessmentId }: { assessmentId: string }) {
 
   return (
     <Card className="mb-4 border-violet-200">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full min-h-[44px] items-center justify-between gap-3 text-left"
-      >
-        <span>
-          <span className="block text-sm font-bold text-slate-800">
-            Step 1 — Facility Security Level determination
+      {/* The gate: the FSL section only exists for federal facilities. */}
+      <div className="flex min-h-[44px] flex-wrap items-center gap-3">
+        <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm font-medium text-slate-800">
+          <input
+            type="checkbox"
+            className="h-5 w-5 accent-violet-600"
+            checked={federal}
+            onChange={(e) => setFederal(e.target.checked)}
+          />
+          This is a federal facility
+        </label>
+        {federal && saved ? (
+          <span className="ml-auto">
+            <Badge tone="violet">{fslLabel(saved.final, saved.federalFacility)}</Badge>
           </span>
-          <span className="block text-xs text-slate-500">
-            ISC RMP (2021) §4 · Sets the baseline Level of Protection for this assessment
+        ) : saved ? (
+          <span className="ml-auto text-xs text-slate-400">
+            FSL determination on file — check the box to view or edit
           </span>
-        </span>
-        {saved ? (
-          <Badge tone="violet">{fslLabel(saved.final, saved.federalFacility)}</Badge>
-        ) : (
-          <Badge tone="gray">Not determined</Badge>
-        )}
-      </button>
+        ) : null}
+      </div>
 
-      {open && (
+      {federal && (
         <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
-          <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              className="h-5 w-5 accent-violet-600"
-              checked={federal}
-              onChange={(e) => setFederal(e.target.checked)}
-            />
-            This is a federal facility
-            <span className="text-xs text-slate-400">
-              (unchecked → result is labeled “FSL-equivalent”)
-            </span>
-          </label>
+          <div>
+            <p className="text-sm font-bold text-slate-800">
+              Facility Security Level determination
+            </p>
+            <p className="text-xs text-slate-500">
+              ISC RMP (2021) §4 · Sets the baseline Level of Protection for this assessment
+            </p>
+          </div>
 
           <QualFactor
             k="mission"

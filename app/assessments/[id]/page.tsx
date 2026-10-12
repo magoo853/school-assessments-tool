@@ -731,8 +731,8 @@ export default function TakerPage() {
             )}
           </Card>
 
-          {/* Step 1 — FSL determination (ISC RMP §4). Done before the walkthrough:
-              the FSL sets the baseline Level of Protection everything is measured against. */}
+          {/* FSL determination (ISC RMP §4) — gated behind a "This is a federal
+              facility" checkbox; the section only appears when checked. */}
           <FslWizard assessmentId={assessment.id} />
 
           {/* Assigned assessors — photo + clearance, verifiable at a glance */}
