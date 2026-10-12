@@ -11,7 +11,7 @@
  * offline; this worker only keeps the app shell loadable without signal.
  */
 
-const CACHE = "sat-shell-v1";
+const CACHE = "sat-shell-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

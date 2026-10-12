@@ -169,25 +169,40 @@ function AssessorCard({
   const a = assessor;
   const badge = clearanceInfo(a);
   const checked = PREVISIT_ITEMS.filter((i) => a.previsit?.[i.key]).length;
+  const cleared = PREVISIT_ITEMS.length > 0 && checked === PREVISIT_ITEMS.length;
 
   return (
-    <Card className="flex flex-col">
+    <Card
+      className={`flex flex-col ${cleared ? "border-emerald-300 ring-2 ring-emerald-500/50" : ""}`}
+    >
       <div className="flex gap-3">
-        {a.photo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={a.photo}
-            alt={a.name}
-            className="h-16 w-16 shrink-0 rounded-xl border border-gray-200 object-cover"
-          />
-        ) : (
-          <div
-            aria-hidden
-            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-xl font-bold text-violet-800"
-          >
-            {initials(a.name)}
-          </div>
-        )}
+        <div className="relative shrink-0 self-start">
+          {a.photo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={a.photo}
+              alt={a.name}
+              className="h-16 w-16 rounded-xl border border-gray-200 object-cover"
+            />
+          ) : (
+            <div
+              aria-hidden
+              className="flex h-16 w-16 items-center justify-center rounded-xl bg-violet-100 text-xl font-bold text-violet-800"
+            >
+              {initials(a.name)}
+            </div>
+          )}
+          {cleared && (
+            <span
+              className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-base font-bold text-white ring-2 ring-white"
+              role="img"
+              aria-label="Cleared for visit"
+              title="Pre-visit checklist complete — cleared for the visit"
+            >
+              ✓
+            </span>
+          )}
+        </div>
         <div className="min-w-0 flex-1">
           <Link
             href={`/schedule?assessor=${a.id}`}
@@ -198,6 +213,14 @@ function AssessorCard({
           {a.title && <p className="truncate text-sm text-gray-500">{a.title}</p>}
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <Badge tone={badge.tone}>{badge.label}</Badge>
+            {cleared && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 py-1 pl-1.5 pr-2.5 text-xs font-bold text-white">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[11px] font-bold text-emerald-700">
+                  ✓
+                </span>
+                CLEARED FOR VISIT
+              </span>
+            )}
             {a.clearanceExpiry && (
               <span className="text-xs text-gray-500">
                 exp. {formatDate(a.clearanceExpiry)}
@@ -244,6 +267,14 @@ function AssessorCard({
               ({checked}/{PREVISIT_ITEMS.length})
             </span>
           </p>
+          {cleared && (
+            <p className="mt-2 flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-emerald-700">
+                ✓
+              </span>
+              Checklist complete — cleared for the visit
+            </p>
+          )}
           <div className="mt-2 space-y-1">
             {PREVISIT_ITEMS.map((item) => (
               <label
@@ -270,7 +301,11 @@ function AssessorCard({
 
       <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
         <Btn variant="ghost" onClick={onToggle} className="flex-1">
-          {expanded ? "Hide checklist" : `Pre-visit checklist (${checked}/${PREVISIT_ITEMS.length})`}
+          {expanded
+            ? "Hide checklist"
+            : cleared
+              ? `✓ Cleared — checklist (${checked}/${PREVISIT_ITEMS.length})`
+              : `Pre-visit checklist (${checked}/${PREVISIT_ITEMS.length})`}
         </Btn>
         <Btn variant="ghost" onClick={onEdit}>
           Edit

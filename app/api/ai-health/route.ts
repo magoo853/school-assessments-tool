@@ -45,3 +45,26 @@ export async function GET() {
     });
   }
 }
+
+/** POST { apiKey } — test a device-stored key without saving it server-side. */
+export async function POST(req: Request) {
+  let key = "";
+  try {
+    const body = (await req.json()) as { apiKey?: unknown };
+    if (typeof body.apiKey === "string") key = body.apiKey.trim().slice(0, 300);
+  } catch {
+    /* fall through with empty key */
+  }
+  if (!key) {
+    return NextResponse.json({ working: false, error: "No key provided" });
+  }
+  try {
+    const res = await fetch(`${AI_API_BASE}/models`, {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    return NextResponse.json({ working: res.ok, status: res.status });
+  } catch {
+    return NextResponse.json({ working: false });
+  }
+}

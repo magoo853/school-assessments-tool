@@ -47,6 +47,25 @@ const KIND_DESCS: Record<ReportKind, string> = {
   recommendations: "Prioritized recommendations plus equipment needs grouped by priority.",
 };
 
+/** Each school gets a stable color (hashed from its name) so it's easy
+ *  to follow across the picker, the generate bar, and the report list. */
+const SCHOOL_COLORS = [
+  { bar: "#7c3aed", bg: "#f5f3ff" },
+  { bar: "#0284c7", bg: "#f0f9ff" },
+  { bar: "#059669", bg: "#ecfdf5" },
+  { bar: "#d97706", bg: "#fffbeb" },
+  { bar: "#e11d48", bg: "#fff1f2" },
+  { bar: "#0891b2", bg: "#ecfeff" },
+  { bar: "#4f46e5", bg: "#eef2ff" },
+  { bar: "#65a30d", bg: "#f7fee7" },
+];
+
+function schoolColor(name: string): { bar: string; bg: string } {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return SCHOOL_COLORS[h % SCHOOL_COLORS.length];
+}
+
 function fmtUpdated(iso: string): string {
   try {
     return new Date(iso).toLocaleString(undefined, {
@@ -75,6 +94,13 @@ export default function ReportsPage() {
   const reportsByKey = useMemo(() => {
     const m = new Map<string, ReportDoc>();
     for (const r of db.reports.list()) m.set(`${r.assessmentId}:${r.kind}`, r);
+    return m;
+  }, [mode, tick]);
+
+  const findingsCount = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of db.findings.list())
+      m.set(f.assessmentId, (m.get(f.assessmentId) ?? 0) + 1);
     return m;
   }, [mode, tick]);
 
@@ -194,10 +220,20 @@ export default function ReportsPage() {
         subtitle="Generate editable reports from completed walkthroughs, or export raw data as CSV."
       />
 
-      {/* Selection-first generation: pick one assessment or a group, then generate */}
-      {assessments.length > 0 && (
-        <div className="sticky top-16 z-20 -mx-4 bg-[#EEF1F8]/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
-          <div className="flex flex-wrap items-center gap-2">
+      {/* Step 1 — pick assessments (each school has its own color) */}
+      {assessments.length === 0 ? (
+        <EmptyState
+          title="No assessments yet"
+          body="Reports are generated per assessment. Complete a walkthrough first, then generate its reports here."
+        />
+      ) : (
+        <Card>
+          <h2 className="font-semibold">1 · Pick assessments</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Tap a school to select it — one for its own reports, or several
+            for a group. Each school keeps its color everywhere on this page.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <Btn
               variant="ghost"
               onClick={() =>
@@ -227,41 +263,110 @@ export default function ReportsPage() {
               {selected.size} selected
             </span>
           </div>
-          {selected.size > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <div className="flex gap-1 rounded-full border border-slate-200 bg-white p-1">
-                {(Object.keys(REPORT_LABELS) as ReportKind[]).map((kind) => (
+          <ul className="mt-3 space-y-2">
+            {assessments.map((a) => {
+              const c = schoolColor(a.clientName);
+              const isSel = selected.has(a.id);
+              const n = findingsCount.get(a.id) ?? 0;
+              return (
+                <li key={a.id}>
                   <button
-                    key={kind}
                     type="button"
-                    onClick={() => setBatchKind(kind)}
-                    aria-pressed={batchKind === kind}
-                    className={`min-h-[44px] rounded-full px-3 text-sm font-semibold transition ${
-                      batchKind === kind
-                        ? "bg-gradient-to-r from-violet-500 to-indigo-500 text-white"
-                        : "text-slate-500 hover:text-slate-800"
-                    }`}
+                    onClick={() => toggleSelect(a.id)}
+                    aria-pressed={isSel}
+                    className="flex min-h-[56px] w-full items-center gap-3 rounded-xl border-2 px-3 py-2 text-left transition"
+                    style={{
+                      borderColor: isSel ? c.bar : "#e2e8f0",
+                      background: isSel ? c.bg : "#ffffff",
+                    }}
                   >
-                    {KIND_ICONS[kind]} {REPORT_LABELS[kind]}
+                    <span
+                      aria-hidden
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-sm font-bold text-white"
+                      style={{
+                        borderColor: c.bar,
+                        background: isSel ? c.bar : "transparent",
+                        color: isSel ? "#ffffff" : "transparent",
+                      }}
+                    >
+                      ✓
+                    </span>
+                    <span
+                      aria-hidden
+                      className="h-3.5 w-3.5 shrink-0 rounded-full"
+                      style={{ background: c.bar }}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold text-slate-900">
+                        {a.clientName}
+                        <span className="font-normal text-slate-500">
+                          {" "}
+                          — {a.campus}
+                        </span>
+                      </span>
+                      <span className="block text-xs text-slate-500">
+                        {a.cover?.date || a.createdAt.slice(0, 10)} · {n}{" "}
+                        finding{n === 1 ? "" : "s"}
+                      </span>
+                    </span>
+                    <StatusPill status={a.status} />
                   </button>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
+
+      {/* Generate bar — sticks once anything is selected */}
+      {selected.size > 0 && (
+        <div className="sticky top-16 z-20 -mx-4 bg-[#EEF1F8]/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+              <span className="flex -space-x-1">
+                {selectedAssessments.slice(0, 6).map((a) => (
+                  <span
+                    key={a.id}
+                    title={a.clientName}
+                    className="h-3.5 w-3.5 rounded-full ring-2 ring-[#EEF1F8]"
+                    style={{ background: schoolColor(a.clientName).bar }}
+                  />
                 ))}
-              </div>
-              <Btn onClick={generateSelected}>
-                Generate {selected.size} report{selected.size === 1 ? "" : "s"}
-              </Btn>
-              {selected.size >= 2 &&
-                (batchKind === "aar" ? (
-                  <span className="text-xs text-slate-400">
-                    Combined roll-ups are for Findings and Recommendations — an
-                    AAR is per-facility.
-                  </span>
-                ) : (
-                  <Btn variant="ghost" onClick={generateCombined}>
-                    🧩 Generate combined ({selected.size} schools)
-                  </Btn>
-                ))}
+              </span>
+              {selected.size} selected ·
+            </span>
+            <div className="flex gap-1 rounded-full border border-slate-200 bg-white p-1">
+              {(Object.keys(REPORT_LABELS) as ReportKind[]).map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => setBatchKind(kind)}
+                  aria-pressed={batchKind === kind}
+                  className={`min-h-[44px] rounded-full px-3 text-sm font-semibold transition ${
+                    batchKind === kind
+                      ? "bg-gradient-to-r from-violet-500 to-indigo-500 text-white"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  {KIND_ICONS[kind]} {REPORT_LABELS[kind]}
+                </button>
+              ))}
             </div>
-          )}
+            <Btn onClick={generateSelected}>
+              Generate {selected.size} report{selected.size === 1 ? "" : "s"}
+            </Btn>
+            {selected.size >= 2 &&
+              (batchKind === "aar" ? (
+                <span className="text-xs text-slate-500">
+                  Combined roll-ups are for Findings and Recommendations — an
+                  AAR is per-facility.
+                </span>
+              ) : (
+                <Btn variant="ghost" onClick={generateCombined}>
+                  🧩 Generate combined ({selected.size} schools)
+                </Btn>
+              ))}
+          </div>
           {notice && (
             <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
               {notice}
@@ -270,89 +375,80 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* Per-assessment report cards */}
-      {assessments.length === 0 ? (
-        <EmptyState
-          title="No assessments yet"
-          body="Reports are generated per assessment. Complete a walkthrough first, then generate its reports here."
-        />
-      ) : (
-        assessments.map((a) => (
-          <Card key={a.id}>
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h2 className="text-lg font-bold">
-                  {a.clientName}{" "}
-                  <span className="font-normal text-gray-500">— {a.campus}</span>
-                </h2>
-                <p className="mt-1 text-xs text-gray-500">
-                  Assessment date: {a.cover?.date || a.createdAt.slice(0, 10)}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm font-medium text-slate-600">
-                  <input
-                    type="checkbox"
-                    className="h-5 w-5 accent-violet-600"
-                    checked={selected.has(a.id)}
-                    onChange={() => toggleSelect(a.id)}
-                    aria-label={`Select ${a.clientName} for batch generation`}
-                  />
-                  Select
-                </label>
-                <StatusPill status={a.status} />
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              {(Object.keys(REPORT_LABELS) as ReportKind[]).map((kind) => {
-                const doc = reportsByKey.get(`${a.id}:${kind}`);
-                return (
-                  <div
-                    key={kind}
-                    className="flex flex-col rounded-lg border border-gray-200 p-3"
-                  >
-                    <p className="font-semibold">
-                      <span aria-hidden className="mr-1.5">
-                        {KIND_ICONS[kind]}
-                      </span>
-                      {REPORT_LABELS[kind]}
-                    </p>
-                    <p className="mt-1 flex-1 text-xs text-gray-500">
-                      {KIND_DESCS[kind]}
-                    </p>
-                    <div className="mt-2">
-                      {doc ? (
-                        <Badge tone="green">
-                          Generated · {fmtUpdated(doc.updatedAt)}
-                        </Badge>
-                      ) : (
-                        <Badge tone="gray">Not generated</Badge>
-                      )}
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Btn
-                        variant="primary"
-                        className="min-h-[44px] flex-1"
-                        onClick={() => generate(a, kind)}
-                      >
-                        {doc ? "Regenerate" : "Generate"}
-                      </Btn>
-                      {doc && (
-                        <Link
-                          href={`/reports/${doc.id}`}
-                          className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                        >
-                          Open
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-        ))
+      {/* Step 2 — your reports, grouped by school in the same colors */}
+      {assessments.length > 0 && (
+        <Card>
+          <h2 className="font-semibold">2 · Your reports</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Open a generated report to edit, print, or share it.
+          </p>
+          <div className="mt-4 space-y-5">
+            {assessments.map((a) => {
+              const c = schoolColor(a.clientName);
+              return (
+                <div key={a.id}>
+                  <p className="flex items-center gap-2 font-semibold text-slate-900">
+                    <span
+                      aria-hidden
+                      className="h-3.5 w-3.5 rounded-full"
+                      style={{ background: c.bar }}
+                    />
+                    {a.clientName}
+                    <span className="font-normal text-slate-500">
+                      — {a.campus}
+                    </span>
+                  </p>
+                  <ul className="mt-2 divide-y divide-gray-100 border-l-4 pl-3" style={{ borderColor: c.bar }}>
+                    {(Object.keys(REPORT_LABELS) as ReportKind[]).map(
+                      (kind) => {
+                        const doc = reportsByKey.get(`${a.id}:${kind}`);
+                        return (
+                          <li
+                            key={kind}
+                            className="flex flex-wrap items-center gap-2 py-2"
+                          >
+                            <span className="min-w-[180px] flex-1">
+                              <span className="font-medium text-slate-800">
+                                <span aria-hidden className="mr-1.5">
+                                  {KIND_ICONS[kind]}
+                                </span>
+                                {REPORT_LABELS[kind]}
+                              </span>
+                              <span className="block text-xs text-slate-400">
+                                {KIND_DESCS[kind]}
+                              </span>
+                            </span>
+                            {doc ? (
+                              <Badge tone="green">
+                                Generated · {fmtUpdated(doc.updatedAt)}
+                              </Badge>
+                            ) : (
+                              <Badge tone="gray">Not generated</Badge>
+                            )}
+                            <Btn
+                              variant="ghost"
+                              onClick={() => generate(a, kind)}
+                            >
+                              {doc ? "Regenerate" : "Generate"}
+                            </Btn>
+                            {doc && (
+                              <Link
+                                href={`/reports/${doc.id}`}
+                                className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                              >
+                                Open
+                              </Link>
+                            )}
+                          </li>
+                        );
+                      }
+                    )}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       )}
 
       {/* Combined (group) reports */}
@@ -369,7 +465,27 @@ export default function ReportsPage() {
                   href={`/reports/${doc.id}`}
                   className="flex min-h-[44px] flex-wrap items-center justify-between gap-2 rounded-lg py-3 transition-colors hover:bg-violet-50/50"
                 >
-                  <span className="font-medium text-slate-900">{doc.title}</span>
+                  <span className="flex items-center gap-2 font-medium text-slate-900">
+                    <span className="flex -space-x-1">
+                      {doc.assessmentId
+                        .slice("group:".length)
+                        .split("|")
+                        .map((id) => {
+                          const a = assessments.find((x) => x.id === id);
+                          return a ? (
+                            <span
+                              key={id}
+                              title={a.clientName}
+                              className="h-3.5 w-3.5 rounded-full ring-2 ring-white"
+                              style={{
+                                background: schoolColor(a.clientName).bar,
+                              }}
+                            />
+                          ) : null;
+                        })}
+                    </span>
+                    {doc.title}
+                  </span>
                   <Badge tone="green">
                     Generated · {fmtUpdated(doc.updatedAt)}
                   </Badge>

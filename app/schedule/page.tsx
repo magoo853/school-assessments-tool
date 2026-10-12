@@ -31,6 +31,35 @@ function templateLabel(id: string): string {
   return TEMPLATES.find((t) => t.id === id)?.label ?? id;
 }
 
+/** Prominent section heading — gradient accent bar + count chip, so the
+ *  page's sections read at a glance instead of blending into row text. */
+function SectionHeading({
+  children,
+  count,
+  className = "",
+}: {
+  children: string;
+  count?: number;
+  className?: string;
+}) {
+  return (
+    <h2
+      className={`flex items-center gap-2.5 text-lg font-bold tracking-tight text-slate-900 ${className}`}
+    >
+      <span
+        aria-hidden
+        className="h-6 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-violet-500 to-indigo-500"
+      />
+      {children}
+      {count != null && (
+        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-700">
+          {count}
+        </span>
+      )}
+    </h2>
+  );
+}
+
 function todayLocal(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -365,7 +394,7 @@ function ReassessmentPanel() {
 
   return (
     <Card>
-      <h2 className="font-semibold">Reassessments due</h2>
+      <SectionHeading count={rows.length}>Reassessments due</SectionHeading>
       <p className="mt-1 text-sm text-gray-500">
         Completed assessments start a 12-month reassessment clock.
       </p>
@@ -491,7 +520,9 @@ function ScheduleInner() {
       ) : (
         <>
           <Card className="p-0 md:p-0">
-            <h2 className="px-4 pt-4 font-semibold md:px-5 md:pt-5">Upcoming</h2>
+            <SectionHeading count={upcoming.length} className="px-4 pt-4 md:px-5 md:pt-5">
+              Upcoming
+            </SectionHeading>
             {upcoming.length === 0 ? (
               <div className="px-4 pb-4 pt-2 md:px-5 md:pb-5">
                 <EmptyState
@@ -511,7 +542,9 @@ function ScheduleInner() {
 
           {history.length > 0 && (
             <Card className="p-0 md:p-0">
-              <h2 className="px-4 pt-4 font-semibold md:px-5 md:pt-5">History</h2>
+              <SectionHeading count={history.length} className="px-4 pt-4 md:px-5 md:pt-5">
+                History
+              </SectionHeading>
               <ul className="mt-1">
                 {history.map((s) => (
                   <ScheduleRow key={s.id} item={s} onChanged={refresh} />

@@ -86,7 +86,7 @@ export default function ScheduleCalendar({ items }: { items: ScheduleItem[] }) {
         >
           ‹
         </button>
-        <h2 className="font-semibold">{monthLabel(month.y, month.m)}</h2>
+        <h2 className="text-lg font-bold tracking-tight text-slate-900">{monthLabel(month.y, month.m)}</h2>
         <button
           type="button"
           onClick={() => shift(1)}

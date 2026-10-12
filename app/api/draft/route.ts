@@ -195,6 +195,9 @@ interface ValidatedBody {
   section: DraftSection;
   data: unknown;
   existingDraft?: string;
+  /** Optional per-request key from the in-app Integrations setting
+   *  (stored on the user's device). Falls back to the server env key. */
+  apiKey?: string;
 }
 
 function validateBody(raw: unknown): ValidatedBody | { error: string } {
@@ -211,10 +214,17 @@ function validateBody(raw: unknown): ValidatedBody | { error: string } {
   if (o.existingDraft !== undefined && typeof o.existingDraft !== "string") {
     return { error: "existingDraft must be a string when provided." };
   }
+  if (o.apiKey !== undefined && typeof o.apiKey !== "string") {
+    return { error: "apiKey must be a string when provided." };
+  }
   return {
     section: o.section as DraftSection,
     data: o.data,
     existingDraft: typeof o.existingDraft === "string" ? o.existingDraft.slice(0, 4000) : undefined,
+    apiKey:
+      typeof o.apiKey === "string" && o.apiKey.trim()
+        ? o.apiKey.trim().slice(0, 300)
+        : undefined,
   };
 }
 
@@ -226,8 +236,10 @@ interface ChatCompletionResponse {
   choices?: Array<{ message?: { content?: string | null } }>;
 }
 
-async function callUpstream(userMessage: string): Promise<{ draft: string; model: string }> {
-  const key = process.env.AI_API_KEY;
+async function callUpstream(
+  userMessage: string,
+  key: string | undefined
+): Promise<{ draft: string; model: string }> {
   if (!key) {
     throw Object.assign(new Error("not configured"), { code: "AI_NOT_CONFIGURED" });
   }
@@ -310,10 +322,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return errorJson("INVALID_REQUEST", body.error, 400);
   }
 
-  if (!process.env.AI_API_KEY) {
+  const apiKey = body.apiKey || process.env.AI_API_KEY;
+  if (!apiKey) {
     return errorJson(
       "AI_NOT_CONFIGURED",
-      "AI drafting is not configured. Add AI_API_KEY (a free Google AI Studio key) in the Vercel env vars to enable it — see Integrations.",
+      "AI drafting is not configured. Add a free Google AI Studio key in Integrations to enable it.",
       503
     );
   }
@@ -338,7 +351,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   ].join("\n");
 
   try {
-    const { draft, model } = await callUpstream(userMessage);
+    const { draft, model } = await callUpstream(userMessage, apiKey);
     return NextResponse.json({ draft, model }, { status: 200 });
   } catch (err) {
     const code =
@@ -348,7 +361,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (code === "AI_NOT_CONFIGURED") {
       return errorJson(
         "AI_NOT_CONFIGURED",
-        "AI drafting is not configured. Add AI_API_KEY (a free Google AI Studio key) in the Vercel env vars to enable it — see Integrations.",
+        "AI drafting is not configured. Add a free Google AI Studio key in Integrations to enable it.",
         503
       );
     }

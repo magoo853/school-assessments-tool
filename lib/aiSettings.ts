@@ -8,7 +8,33 @@
 import { useEffect, useState } from "react";
 
 const LS_KEY = "sat_ai_enabled";
+const LS_API_KEY = "sat_ai_key";
 export const AI_EVENT = "sat:ai-changed";
+
+/**
+ * Optional user-supplied API key, stored ONLY on this device
+ * (localStorage). Sent per-request to /api/draft, which uses it for
+ * that call only. Lets the owner configure AI in-app without ever
+ * touching Vercel env vars.
+ */
+export function getAiKey(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(LS_API_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setAiKey(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (key.trim()) window.localStorage.setItem(LS_API_KEY, key.trim());
+    else window.localStorage.removeItem(LS_API_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 export function getAiEnabled(): boolean {
   if (typeof window === "undefined") return true;

@@ -1,10 +1,13 @@
 /**
  * Client helper for the server-side drafting endpoint (POST /api/draft).
- * The API key never reaches the client — the route handler owns it.
- * No key configured → 503 AI_NOT_CONFIGURED → caller falls back to
- * template-based drafts with a subtle hint.
+ * Key resolution server-side: a per-request key from the in-app
+ * Integrations setting (stored on this device only) wins; otherwise
+ * the server's AI_API_KEY env var. No key → 503 AI_NOT_CONFIGURED →
+ * caller falls back to template-based drafts with a subtle hint.
  */
 "use client";
+
+import { getAiKey } from "./aiSettings";
 
 export type DraftSection =
   | "finding"
@@ -25,10 +28,16 @@ export async function requestDraft(
   existingDraft?: string
 ): Promise<DraftResult> {
   try {
+    const apiKey = getAiKey();
     const res = await fetch("/api/draft", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ section, data, existingDraft }),
+      body: JSON.stringify({
+        section,
+        data,
+        existingDraft,
+        ...(apiKey ? { apiKey } : {}),
+      }),
     });
     const json = (await res.json().catch(() => null)) as {
       draft?: string;
