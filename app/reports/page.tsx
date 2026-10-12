@@ -88,10 +88,11 @@ export default function ReportsPage() {
     const responses = db.responses.filter((r) => r.assessmentId === a.id);
     const equipment = db.equipment.filter((e) => e.assessmentId === a.id);
     const template = resolveTemplate(a.templateId);
+    const fsl = db.fslRecords.filter((r) => r.assessmentId === a.id)[0] ?? null;
 
     const markdown =
       kind === "aar"
-        ? buildAarMarkdown(a, responses, refreshed, equipment, template)
+        ? buildAarMarkdown(a, responses, refreshed, equipment, template, fsl)
         : kind === "findings"
           ? buildFindingsMarkdown(a, refreshed, template)
           : buildRecommendationsMarkdown(a, refreshed, equipment, template);

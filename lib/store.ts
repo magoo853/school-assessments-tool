@@ -95,6 +95,42 @@ export interface ReportDoc {
 
 export type ClearanceStatus = "current" | "pending" | "expired";
 
+/**
+ * Facility Security Level determination record (ISC RMP 2021, §4).
+ * One per assessment; upserted by the FSL wizard. The computed fields
+ * (total/preliminary/final) are snapshotted for the audit trail —
+ * recompute with lib/fsl computeFsl() to verify.
+ */
+export interface FslRecord {
+  id: ID;
+  assessmentId: ID;
+  /** False → labeled "FSL-equivalent" (non-federal facility). */
+  federalFacility: boolean;
+  mission: 1 | 2 | 3 | 4;
+  symbolism: 1 | 2 | 3 | 4;
+  threat: 1 | 2 | 3 | 4;
+  populationCount: number | null;
+  sizeSqft: number | null;
+  /** ISC §4.4.2: large land area contributing to target attractiveness (+1 symbolism, max 4). */
+  symbolismLandBonus: boolean;
+  symbolismLandRationale: string;
+  factorNotes: {
+    mission: string;
+    symbolism: string;
+    population: string;
+    size: string;
+    threat: string;
+  };
+  intangibleAdj: -1 | 0 | 1;
+  intangibleJustification: string;
+  total: number;
+  preliminary: "I" | "II" | "III" | "IV";
+  final: "I" | "II" | "III" | "IV";
+  assessedBy: string;
+  assessedAt: string;
+  updatedAt: string;
+}
+
 export interface Assessor {
   id: ID;
   name: string;
@@ -234,6 +270,7 @@ export const db = {
   cleryReports: new Table<CleryReport>("clery_reports"),
   policyDocs: new Table<PolicyDoc>("policy_docs"),
   customTemplates: new Table<CustomTemplate>("custom_templates"),
+  fslRecords: new Table<FslRecord>("fsl_records"),
 };
 
 const SEED_FLAG = "sat_seeded_v1";

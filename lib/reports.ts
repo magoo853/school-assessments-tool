@@ -21,10 +21,12 @@ import {
   type Assessment,
   type EquipmentItem,
   type Finding,
+  type FslRecord,
   type ReportDoc,
   type ReportKind,
   type ResponseRow,
 } from "@/lib/store";
+import { fslLabel, populationPoints, sizePoints } from "@/lib/fsl";
 
 import type { AssessmentTemplate } from "@/lib/templates";
 import { photosFor } from "./photos";
@@ -221,7 +223,8 @@ export function buildAarMarkdown(
   responses: ResponseRow[],
   findings: Finding[],
   equipment: EquipmentItem[],
-  template?: AssessmentTemplate | null
+  template?: AssessmentTemplate | null,
+  fsl?: FslRecord | null
 ): string {
   const idx = buildCheckpointIndex(template);
   const sorted = sortFindings(findings);
@@ -285,6 +288,22 @@ export function buildAarMarkdown(
   L.push(
     `- Findings: ${c.findings} total — ${c.high} high-risk, ${c.moderate} moderate-risk, ${c.low} low-risk`
   );
+  if (fsl) {
+    const adjNote =
+      fsl.intangibleAdj !== 0
+        ? `, adjusted ${fsl.intangibleAdj > 0 ? "+1" : "−1"} level with documented justification`
+        : "";
+    L.push(
+      `- Facility Security Level: **${fslLabel(fsl.final, fsl.federalFacility)}** — ${fsl.total} points across the five ISC factors (preliminary ${fslLabel(fsl.preliminary, fsl.federalFacility)}${adjNote})`
+    );
+    L.push(
+      `- FSL basis: mission ${fsl.mission}, symbolism ${fsl.symbolism}, population ${fsl.populationCount != null ? populationPoints(fsl.populationCount) : "—"}, size ${fsl.sizeSqft != null ? sizePoints(fsl.sizeSqft) : "—"}, threat ${fsl.threat}`
+    );
+  } else {
+    L.push(
+      `- Facility Security Level: not determined — complete Step 1 (FSL determination) on the assessment to establish the baseline Level of Protection`
+    );
+  }
   L.push("");
 
   L.push("## Key Strengths");

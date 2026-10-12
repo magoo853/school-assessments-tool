@@ -27,6 +27,7 @@ import { AssessorCard } from "@/components/AssessorCard";
 import { PhotoPicker } from "@/components/PhotoPicker";
 import { useMode } from "@/lib/mode";
 import ProdNotice from "@/components/ProdNotice";
+import FslWizard from "@/components/FslWizard";
 import {
   Card,
   PageHeader,
@@ -729,6 +730,10 @@ export default function TakerPage() {
               </p>
             )}
           </Card>
+
+          {/* Step 1 — FSL determination (ISC RMP §4). Done before the walkthrough:
+              the FSL sets the baseline Level of Protection everything is measured against. */}
+          <FslWizard assessmentId={assessment.id} />
 
           {/* Assigned assessors — photo + clearance, verifiable at a glance */}
           {teamAssessors.length > 0 && (
