@@ -16,6 +16,7 @@ import {
 import { resolveTemplate, allTemplates } from "@/lib/customTemplates";
 import { useMode } from "@/lib/mode";
 import ProdNotice from "@/components/ProdNotice";
+import TemplatePickerModal from "@/components/TemplatePickerModal";
 import {
   Card,
   PageHeader,
@@ -213,6 +214,7 @@ const STATUS_FILTERS: { key: string; label: string }[] = [
 function AssessmentsInner() {
   const [mode] = useMode();
   const [showNew, setShowNew] = useState(false);
+  const [switchTarget, setSwitchTarget] = useState<Assessment | null>(null);
   const [, setTick] = useState(0);
   const searchParams = useSearchParams();
   const initialStatus = searchParams.get("status");
@@ -281,8 +283,15 @@ function AssessmentsInner() {
             const p = progress(a);
             const pct = p.total ? Math.round((p.answered / p.total) * 100) : 0;
             return (
-              <Link key={a.id} href={`/assessments/${a.id}`}>
-                <Card className="transition-shadow hover:shadow-md">
+              <Card key={a.id} className="relative transition-shadow hover:shadow-md">
+                {/* Stretched link: the whole card opens the assessment,
+                    while the Change button stays tappable above it. */}
+                <Link
+                  href={`/assessments/${a.id}`}
+                  className="absolute inset-0 z-0 rounded-2xl"
+                  aria-label={`Open ${a.clientName} assessment`}
+                />
+                <div className="relative z-10 pointer-events-none">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-gray-900">
@@ -292,8 +301,15 @@ function AssessmentsInner() {
                     </div>
                     <StatusPill status={a.status} />
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Badge tone="blue">{templateName(a.templateId)}</Badge>
+                    <button
+                      type="button"
+                      onClick={() => setSwitchTarget(a)}
+                      className="pointer-events-auto inline-flex min-h-[36px] items-center rounded-full border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-600 transition-colors hover:border-violet-400 hover:text-violet-700"
+                    >
+                      ⇄ Change template
+                    </button>
                   </div>
                   <div className="mt-3">
                     <div className="flex items-center justify-between text-xs text-gray-500">
@@ -312,14 +328,21 @@ function AssessmentsInner() {
                   <p className="mt-3 text-xs text-gray-400">
                     Updated {fmtDate(updatedAt(a))}
                   </p>
-                </Card>
-              </Link>
+                </div>
+              </Card>
             );
           })}
         </div>
       )}
 
       {showNew && <NewAssessmentModal onClose={() => setShowNew(false)} />}
+      {switchTarget && (
+        <TemplatePickerModal
+          assessment={switchTarget}
+          onClose={() => setSwitchTarget(null)}
+          onChanged={() => setTick((t) => t + 1)}
+        />
+      )}
     </div>
   );
 }

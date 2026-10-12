@@ -28,6 +28,7 @@ import { PhotoPicker } from "@/components/PhotoPicker";
 import { useMode } from "@/lib/mode";
 import ProdNotice from "@/components/ProdNotice";
 import FslWizard from "@/components/FslWizard";
+import TemplatePickerModal from "@/components/TemplatePickerModal";
 import {
   Card,
   PageHeader,
@@ -585,6 +586,7 @@ export default function TakerPage() {
   const [mode] = useMode();
   const [tick, setTick] = useState(0);
   const [confirming, setConfirming] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
     setTick((t) => t + 1);
@@ -688,11 +690,16 @@ export default function TakerPage() {
         title={assessment.clientName}
         subtitle={`${assessment.campus} · ${template.name}`}
         actions={
-          !completed ? (
-            <Btn onClick={() => setConfirming(true)}>Complete assessment</Btn>
-          ) : (
-            <StatusPill status="completed" />
-          )
+          <div className="flex flex-wrap items-center gap-2">
+            <Btn variant="ghost" onClick={() => setSwitching(true)}>
+              ⇄ Template
+            </Btn>
+            {!completed ? (
+              <Btn onClick={() => setConfirming(true)}>Complete assessment</Btn>
+            ) : (
+              <StatusPill status="completed" />
+            )}
+          </div>
         }
       />
       {mode === "prod" && <ProdNotice />}
@@ -815,6 +822,13 @@ export default function TakerPage() {
         </>
       )}
 
+      {switching && (
+        <TemplatePickerModal
+          assessment={assessment}
+          onClose={() => setSwitching(false)}
+          onChanged={() => setTick((t) => t + 1)}
+        />
+      )}
       {confirming && (
         <Modal title="Complete assessment?" onClose={() => setConfirming(false)}>
           <p className="text-sm text-gray-600">
