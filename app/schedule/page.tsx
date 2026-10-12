@@ -89,17 +89,26 @@ const ADVANCE: Record<string, { next: ScheduleItem["status"]; label: string } | 
 
 function ScheduleForm({
   initial,
+  prefill,
   onClose,
 }: {
   initial?: ScheduleItem;
+  /** Pre-fill for a NEW entry (e.g. scheduling a reassessment from the panel). */
+  prefill?: { clientName: string; campus?: string; templateId?: string };
   onClose: () => void;
 }) {
-  const [clientName, setClientName] = useState(initial?.clientName ?? "");
-  const [campus, setCampus] = useState(initial?.campus ?? "");
+  const [clientName, setClientName] = useState(
+    initial?.clientName ?? prefill?.clientName ?? ""
+  );
+  const [campus, setCampus] = useState(initial?.campus ?? prefill?.campus ?? "");
   const [date, setDate] = useState(initial?.date ?? todayLocal());
-  const [templateId, setTemplateId] = useState(initial?.templateId ?? "isc42");
+  const [templateId, setTemplateId] = useState(
+    initial?.templateId ?? prefill?.templateId ?? "isc42"
+  );
   const [assessorId, setAssessorId] = useState(initial?.assessorId ?? "");
-  const [focusNotes, setFocusNotes] = useState(initial?.focusNotes ?? "");
+  const [focusNotes, setFocusNotes] = useState(
+    initial?.focusNotes ?? (prefill ? "Annual reassessment" : "")
+  );
   const [error, setError] = useState("");
   const assessors = useMemo(() => db.assessors.list(), []);
 
@@ -128,6 +137,13 @@ function ScheduleForm({
 
   return (
     <div className="space-y-4">
+      {prefill && !initial && (
+        <p className="rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-800">
+          Scheduling the reassessment for{" "}
+          <strong>{prefill.clientName}</strong> — pick the date and assign an
+          assessor.
+        </p>
+      )}
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
@@ -359,7 +375,11 @@ function ScheduleRow({
 
 /* ---------------- Reassessment panel ---------------- */
 
-function ReassessmentPanel() {
+function ReassessmentPanel({
+  onSchedule,
+}: {
+  onSchedule: (client: string) => void;
+}) {
   const clients = useMemo(() => {
     const seen = new Map<string, string>();
     for (const name of [
@@ -396,25 +416,40 @@ function ReassessmentPanel() {
     <Card>
       <SectionHeading count={rows.length}>Reassessments due</SectionHeading>
       <p className="mt-1 text-sm text-gray-500">
-        Completed assessments start a 12-month reassessment clock.
+        Completed assessments start a 12-month reassessment clock. Tap a
+        school to schedule its reassessment and assign an assessor.
       </p>
       <ul className="mt-3 divide-y divide-gray-100">
         {rows.map((r) => (
           <li key={r.client}>
-            <Link
-              href={`/clients?client=${encodeURIComponent(r.client)}`}
-              className="flex min-h-[44px] flex-wrap items-center justify-between gap-2 rounded-lg py-3 transition-colors hover:bg-violet-50/50"
-            >
-              <div>
-                <p className="font-medium text-gray-900">{r.client}</p>
-                <p className="mt-0.5 text-sm text-gray-500">
-                  {r.lastDate
-                    ? `Last completed ${fmtDate(r.lastDate)} · Due ${r.dueDate ? fmtDate(r.dueDate) : "—"}`
-                    : "No completed assessment on record"}
-                </p>
-              </div>
-              <Badge tone={toneFor(r.state)}>{labelFor(r.state)}</Badge>
-            </Link>
+            <div className="flex flex-wrap items-center gap-2 py-2">
+              <button
+                type="button"
+                onClick={() => onSchedule(r.client)}
+                className="flex min-h-[44px] flex-1 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-violet-50/60"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium text-gray-900">
+                    {r.client}
+                  </span>
+                  <span className="mt-0.5 block text-sm text-gray-500">
+                    {r.lastDate
+                      ? `Last completed ${fmtDate(r.lastDate)} · Due ${r.dueDate ? fmtDate(r.dueDate) : "—"}`
+                      : "No completed assessment on record"}
+                  </span>
+                </span>
+                <Badge tone={toneFor(r.state)}>{labelFor(r.state)}</Badge>
+                <span className="text-sm font-semibold text-violet-700">
+                  + Schedule
+                </span>
+              </button>
+              <Link
+                href={`/clients?client=${encodeURIComponent(r.client)}`}
+                className="flex min-h-[44px] items-center rounded-lg px-2 text-sm font-medium text-slate-500 hover:text-violet-700"
+              >
+                History →
+              </Link>
+            </div>
           </li>
         ))}
       </ul>
@@ -436,6 +471,11 @@ function ScheduleInner() {
   const [mode] = useMode();
   const [, force] = useState(0);
   const [showForm, setShowForm] = useState(false);
+  const [prefill, setPrefill] = useState<{
+    clientName: string;
+    campus?: string;
+    templateId?: string;
+  } | null>(null);
   const [view, setView] = useState<"list" | "calendar">("list");
   const searchParams = useSearchParams();
   const assessorFilter = searchParams.get("assessor");
@@ -456,6 +496,27 @@ function ScheduleInner() {
     ? db.assessors.get(assessorFilter)?.name
     : null;
 
+  /** Open the schedule form pre-filled from a reassessment row: the
+   *  school's campus/template carry over from its latest assessment. */
+  const openScheduleFor = (client: string) => {
+    const mine = db.assessments
+      .filter((a) => a.clientName === client)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const last = mine.find((a) => a.status === "completed") ?? mine[0];
+    setPrefill({
+      clientName: client,
+      campus: last?.campus,
+      templateId: last?.templateId,
+    });
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setPrefill(null);
+    refresh();
+  };
+
   if (mode === "prod") {
     return (
       <div>
@@ -475,11 +536,18 @@ function ScheduleInner() {
         title="Schedule"
         subtitle="Dispatch board for upcoming and past assessment visits."
         actions={
-          <Btn onClick={() => setShowForm(true)}>+ Schedule assessment</Btn>
+          <Btn
+            onClick={() => {
+              setPrefill(null);
+              setShowForm(true);
+            }}
+          >
+            + Schedule assessment
+          </Btn>
         }
       />
 
-      <ReassessmentPanel />
+      <ReassessmentPanel onSchedule={openScheduleFor} />
 
       {/* Active assessor filter */}
       {assessorFilter && (
@@ -528,7 +596,16 @@ function ScheduleInner() {
                 <EmptyState
                   title="No upcoming visits"
                   body="Schedule an assessment to put it on the dispatch board."
-                  action={<Btn onClick={() => setShowForm(true)}>Schedule assessment</Btn>}
+                  action={
+                    <Btn
+                      onClick={() => {
+                        setPrefill(null);
+                        setShowForm(true);
+                      }}
+                    >
+                      Schedule assessment
+                    </Btn>
+                  }
                 />
               </div>
             ) : (
@@ -556,8 +633,15 @@ function ScheduleInner() {
       )}
 
       {showForm && (
-        <Modal title="Schedule assessment" onClose={() => { setShowForm(false); refresh(); }}>
-          <ScheduleForm onClose={() => { setShowForm(false); refresh(); }} />
+        <Modal
+          title={
+            prefill
+              ? `Schedule reassessment — ${prefill.clientName}`
+              : "Schedule assessment"
+          }
+          onClose={closeForm}
+        >
+          <ScheduleForm prefill={prefill ?? undefined} onClose={closeForm} />
         </Modal>
       )}
     </div>
