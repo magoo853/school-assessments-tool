@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { Badge, Btn } from "./ui";
+import { useAiEnabled } from "@/lib/aiSettings";
 import {
   AI_NOT_CONFIGURED_HINT,
   requestDraft,
@@ -32,6 +33,9 @@ export default function AiDraftButton({
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [aiOn] = useAiEnabled();
+
+  if (!aiOn) return null;
 
   const click = async () => {
     setBusy(true);

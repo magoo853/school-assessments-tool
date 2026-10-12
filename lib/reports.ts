@@ -762,6 +762,65 @@ export const REPORT_LABELS: Record<ReportKind, string> = {
   recommendations: "Recommendations Report",
 };
 
+/** Stable key for a group (combined) report: sorted assessment ids. */
+export function groupReportKey(ids: string[]): string {
+  return `group:${[...ids].sort().join("|")}`;
+}
+
+/**
+ * Combined report across several assessments (district roll-up).
+ * Findings and Recommendations only — an AAR is per-facility by design.
+ * Each school's own report body is nested under its heading with its
+ * headings demoted one level; per-school H1 titles are dropped.
+ */
+export function buildCombinedMarkdown(
+  kind: ReportKind,
+  parts: { assessment: Assessment; markdown: string; findings: Finding[] }[]
+): string {
+  const totals = { findings: 0, high: 0, moderate: 0, low: 0 };
+  for (const p of parts) {
+    totals.findings += p.findings.length;
+    for (const f of p.findings) {
+      if (f.risk === "high") totals.high += 1;
+      else if (f.risk === "moderate") totals.moderate += 1;
+      else totals.low += 1;
+    }
+  }
+
+  const L: string[] = [];
+  L.push(`# Combined ${REPORT_LABELS[kind]} — ${parts.length} schools`);
+  L.push("");
+  L.push(`**Report date:** ${reportDate()}`);
+  L.push(
+    `**Schools:** ${parts.map((p) => `${p.assessment.clientName} (${p.assessment.campus})`).join("; ")}`
+  );
+  L.push(
+    `**Total findings:** ${totals.findings} (${totals.high} high-risk, ${totals.moderate} moderate-risk, ${totals.low} low-risk)`
+  );
+  L.push("");
+  L.push(
+    "This combined report rolls up the individual school reports below. Each section is that school's own report, unchanged."
+  );
+  L.push("");
+
+  for (const p of parts) {
+    L.push(`## ${p.assessment.clientName} — ${p.assessment.campus}`);
+    L.push("");
+    const body = p.markdown
+      .split("\n")
+      .filter((line, i) => !(i === 0 && line.startsWith("# ")))
+      .map((line) => (/^#{1,5} /.test(line) ? `#${line}` : line))
+      .join("\n")
+      .trim();
+    L.push(body);
+    L.push("");
+    L.push("---");
+    L.push("");
+  }
+
+  return L.join("\n");
+}
+
 export function upsertReport(
   assessmentId: ID2,
   kind: ReportKind,

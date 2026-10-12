@@ -254,9 +254,11 @@ export default function ReportViewPage() {
           >
             🖨 Print / PDF
           </Link>
-          <Btn variant="ghost" className="flex-1 sm:flex-none" onClick={shareHtml} title="One self-contained file — email it; the school opens it in any browser, no account needed.">
-            📧 Share HTML
-          </Btn>
+          {!doc.assessmentId.startsWith("group:") && (
+            <Btn variant="ghost" className="flex-1 sm:flex-none" onClick={shareHtml} title="One self-contained file — email it; the school opens it in any browser, no account needed.">
+              📧 Share HTML
+            </Btn>
+          )}
           {savedAt && (
             <span className="ml-auto text-xs text-gray-500">
               Saved {savedAt}

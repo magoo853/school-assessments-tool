@@ -17,6 +17,7 @@ const NAV = [
   { href: "/templates", label: "Templates", icon: "📝" },
   { href: "/reports", label: "Reports & Exports", icon: "📄" },
   { href: "/policies", label: "Policy Docs", icon: "📚" },
+  { href: "/integrations", label: "Integrations", icon: "🔌" },
 ];
 
 /** Small "Offline" pill in the header when the device has no signal. */

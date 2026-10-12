@@ -17,7 +17,7 @@ export type DraftResult =
   | { ok: false; code: string; message: string };
 
 export const AI_NOT_CONFIGURED_HINT =
-  "Add AI_API_KEY to enable LLM drafting";
+  "AI drafting is off until a key is added — see Integrations for the free Google AI Studio key";
 
 export async function requestDraft(
   section: DraftSection,

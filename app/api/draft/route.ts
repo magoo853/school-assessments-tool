@@ -58,8 +58,12 @@ interface DraftData {
 /* Config (env only, server-side)                                       */
 /* ------------------------------------------------------------------ */
 
-const AI_API_BASE = process.env.AI_API_BASE?.replace(/\/+$/, "") || "https://api.openai.com/v1";
-const AI_MODEL = process.env.AI_MODEL || "gpt-4o-mini";
+const AI_API_BASE =
+  process.env.AI_API_BASE?.replace(/\/+$/, "") ||
+  "https://generativelanguage.googleapis.com/v1beta/openai";
+const AI_MODEL = process.env.AI_MODEL || "gemini-3.8-flash";
+/** Tried in order when the primary model errors (retired/renamed models 404). */
+const AI_MODEL_FALLBACKS = ["gemini-3.6-flash", "gemini-3.5-flash-lite"];
 
 const SYSTEM_PROMPT =
   "You are a school-safety assessment report writer. Draft ONLY from the data provided — " +
@@ -222,58 +226,67 @@ interface ChatCompletionResponse {
   choices?: Array<{ message?: { content?: string | null } }>;
 }
 
-async function callUpstream(userMessage: string): Promise<string> {
+async function callUpstream(userMessage: string): Promise<{ draft: string; model: string }> {
   const key = process.env.AI_API_KEY;
   if (!key) {
     throw Object.assign(new Error("not configured"), { code: "AI_NOT_CONFIGURED" });
   }
 
-  let res: Response;
-  try {
-    res = await fetch(`${AI_API_BASE}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userMessage },
-        ],
-        temperature: 0.4,
-        max_tokens: 1500,
-      }),
-      signal: AbortSignal.timeout(60_000),
-    });
-  } catch {
-    throw Object.assign(new Error("AI service unreachable."), { code: "AI_UPSTREAM_ERROR" });
+  const models = Array.from(new Set([AI_MODEL, ...AI_MODEL_FALLBACKS]));
+  let lastStatus = 0;
+  for (const model of models) {
+    let res: Response;
+    try {
+      res = await fetch(`${AI_API_BASE}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: userMessage },
+          ],
+          temperature: 0.4,
+          max_tokens: 1500,
+        }),
+        signal: AbortSignal.timeout(60_000),
+      });
+    } catch {
+      throw Object.assign(new Error("AI service unreachable."), { code: "AI_UPSTREAM_ERROR" });
+    }
+
+    if (!res.ok) {
+      // Intentionally do NOT include the upstream body — it may leak internals.
+      // Auth failures won't heal by switching models; everything else might.
+      lastStatus = res.status;
+      if (res.status === 401 || res.status === 403) break;
+      continue;
+    }
+
+    let json: ChatCompletionResponse;
+    try {
+      json = (await res.json()) as ChatCompletionResponse;
+    } catch {
+      throw Object.assign(new Error("AI service returned an invalid response."), {
+        code: "AI_UPSTREAM_ERROR",
+      });
+    }
+
+    const draft = json.choices?.[0]?.message?.content?.trim();
+    if (!draft) {
+      throw Object.assign(new Error("AI service returned an empty draft."), {
+        code: "AI_UPSTREAM_ERROR",
+      });
+    }
+    return { draft, model };
   }
 
-  if (!res.ok) {
-    // Intentionally do NOT include the upstream body — it may leak internals.
-    throw Object.assign(new Error(`AI service returned status ${res.status}.`), {
-      code: "AI_UPSTREAM_ERROR",
-    });
-  }
-
-  let json: ChatCompletionResponse;
-  try {
-    json = (await res.json()) as ChatCompletionResponse;
-  } catch {
-    throw Object.assign(new Error("AI service returned an invalid response."), {
-      code: "AI_UPSTREAM_ERROR",
-    });
-  }
-
-  const draft = json.choices?.[0]?.message?.content?.trim();
-  if (!draft) {
-    throw Object.assign(new Error("AI service returned an empty draft."), {
-      code: "AI_UPSTREAM_ERROR",
-    });
-  }
-  return draft;
+  throw Object.assign(new Error(`AI service returned status ${lastStatus}.`), {
+    code: "AI_UPSTREAM_ERROR",
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -300,7 +313,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!process.env.AI_API_KEY) {
     return errorJson(
       "AI_NOT_CONFIGURED",
-      "AI drafting is not configured. Add AI_API_KEY to enable LLM drafting.",
+      "AI drafting is not configured. Add AI_API_KEY (a free Google AI Studio key) in the Vercel env vars to enable it — see Integrations.",
       503
     );
   }
@@ -325,8 +338,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   ].join("\n");
 
   try {
-    const draft = await callUpstream(userMessage);
-    return NextResponse.json({ draft, model: AI_MODEL }, { status: 200 });
+    const { draft, model } = await callUpstream(userMessage);
+    return NextResponse.json({ draft, model }, { status: 200 });
   } catch (err) {
     const code =
       err instanceof Error && "code" in err && typeof (err as { code: unknown }).code === "string"
@@ -335,7 +348,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (code === "AI_NOT_CONFIGURED") {
       return errorJson(
         "AI_NOT_CONFIGURED",
-        "AI drafting is not configured. Add AI_API_KEY to enable LLM drafting.",
+        "AI drafting is not configured. Add AI_API_KEY (a free Google AI Studio key) in the Vercel env vars to enable it — see Integrations.",
         503
       );
     }

@@ -17,11 +17,13 @@ import {
   REPORT_LABELS,
   assessmentsCsv,
   buildAarMarkdown,
+  buildCombinedMarkdown,
   buildFindingsMarkdown,
   buildRecommendationsMarkdown,
   download,
   equipmentCsv,
   findingsCsv,
+  groupReportKey,
   responsesCsv,
   upsertReport,
 } from "@/lib/reports";
@@ -82,9 +84,9 @@ export default function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const generate = (a: Assessment, kind: ReportKind) => {
-    const findings = deriveFindings(a.id);
-    const refreshed = db.findings.filter((f) => f.assessmentId === a.id);
+  const buildFor = (a: Assessment, kind: ReportKind) => {
+    deriveFindings(a.id);
+    const findings = db.findings.filter((f) => f.assessmentId === a.id);
     const responses = db.responses.filter((r) => r.assessmentId === a.id);
     const equipment = db.equipment.filter((e) => e.assessmentId === a.id);
     const template = resolveTemplate(a.templateId);
@@ -92,11 +94,15 @@ export default function ReportsPage() {
 
     const markdown =
       kind === "aar"
-        ? buildAarMarkdown(a, responses, refreshed, equipment, template, fsl)
+        ? buildAarMarkdown(a, responses, findings, equipment, template, fsl)
         : kind === "findings"
-          ? buildFindingsMarkdown(a, refreshed, template)
-          : buildRecommendationsMarkdown(a, refreshed, equipment, template);
+          ? buildFindingsMarkdown(a, findings, template)
+          : buildRecommendationsMarkdown(a, findings, equipment, template);
+    return { markdown, findings };
+  };
 
+  const generate = (a: Assessment, kind: ReportKind) => {
+    const { markdown } = buildFor(a, kind);
     upsertReport(
       a.id,
       kind,
@@ -105,6 +111,63 @@ export default function ReportsPage() {
     );
     setTick((t) => t + 1);
   };
+
+  /* -------- Selection-first generation -------- */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [batchKind, setBatchKind] = useState<ReportKind>("findings");
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const selectedAssessments = assessments.filter((a) => selected.has(a.id));
+
+  const generateSelected = () => {
+    for (const a of selectedAssessments) {
+      const { markdown } = buildFor(a, batchKind);
+      upsertReport(
+        a.id,
+        batchKind,
+        markdown,
+        `${REPORT_LABELS[batchKind]} — ${a.clientName}`
+      );
+    }
+    setNotice(
+      `Generated ${REPORT_LABELS[batchKind]} for ${selectedAssessments.length} assessment${selectedAssessments.length === 1 ? "" : "s"}.`
+    );
+    setTick((t) => t + 1);
+  };
+
+  const generateCombined = () => {
+    const parts = selectedAssessments.map((a) => {
+      const { markdown, findings } = buildFor(a, batchKind);
+      return { assessment: a, markdown, findings };
+    });
+    const combined = buildCombinedMarkdown(batchKind, parts);
+    upsertReport(
+      groupReportKey(selectedAssessments.map((a) => a.id)),
+      batchKind,
+      combined,
+      `Combined ${REPORT_LABELS[batchKind]} — ${selectedAssessments.length} schools`
+    );
+    setNotice(
+      `Combined ${REPORT_LABELS[batchKind]} generated for ${selectedAssessments.length} schools — see Combined reports below.`
+    );
+    setTick((t) => t + 1);
+  };
+
+  const groupDocs = useMemo(
+    () =>
+      db.reports
+        .filter((r) => r.assessmentId.startsWith("group:"))
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [mode, tick]
+  );
 
   const exportAll = (
     filename: string,
@@ -131,6 +194,82 @@ export default function ReportsPage() {
         subtitle="Generate editable reports from completed walkthroughs, or export raw data as CSV."
       />
 
+      {/* Selection-first generation: pick one assessment or a group, then generate */}
+      {assessments.length > 0 && (
+        <div className="sticky top-16 z-20 -mx-4 bg-[#EEF1F8]/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <Btn
+              variant="ghost"
+              onClick={() =>
+                setSelected(
+                  new Set(
+                    assessments
+                      .filter((a) => a.status === "completed")
+                      .map((a) => a.id)
+                  )
+                )
+              }
+            >
+              Select completed
+            </Btn>
+            <Btn
+              variant="ghost"
+              onClick={() => setSelected(new Set(assessments.map((a) => a.id)))}
+            >
+              Select all
+            </Btn>
+            {selected.size > 0 && (
+              <Btn variant="ghost" onClick={() => setSelected(new Set())}>
+                Clear
+              </Btn>
+            )}
+            <span className="text-sm font-medium text-slate-600">
+              {selected.size} selected
+            </span>
+          </div>
+          {selected.size > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="flex gap-1 rounded-full border border-slate-200 bg-white p-1">
+                {(Object.keys(REPORT_LABELS) as ReportKind[]).map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => setBatchKind(kind)}
+                    aria-pressed={batchKind === kind}
+                    className={`min-h-[44px] rounded-full px-3 text-sm font-semibold transition ${
+                      batchKind === kind
+                        ? "bg-gradient-to-r from-violet-500 to-indigo-500 text-white"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    {KIND_ICONS[kind]} {REPORT_LABELS[kind]}
+                  </button>
+                ))}
+              </div>
+              <Btn onClick={generateSelected}>
+                Generate {selected.size} report{selected.size === 1 ? "" : "s"}
+              </Btn>
+              {selected.size >= 2 &&
+                (batchKind === "aar" ? (
+                  <span className="text-xs text-slate-400">
+                    Combined roll-ups are for Findings and Recommendations — an
+                    AAR is per-facility.
+                  </span>
+                ) : (
+                  <Btn variant="ghost" onClick={generateCombined}>
+                    🧩 Generate combined ({selected.size} schools)
+                  </Btn>
+                ))}
+            </div>
+          )}
+          {notice && (
+            <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              {notice}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Per-assessment report cards */}
       {assessments.length === 0 ? (
         <EmptyState
@@ -150,7 +289,19 @@ export default function ReportsPage() {
                   Assessment date: {a.cover?.date || a.createdAt.slice(0, 10)}
                 </p>
               </div>
-              <StatusPill status={a.status} />
+              <div className="flex items-center gap-3">
+                <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm font-medium text-slate-600">
+                  <input
+                    type="checkbox"
+                    className="h-5 w-5 accent-violet-600"
+                    checked={selected.has(a.id)}
+                    onChange={() => toggleSelect(a.id)}
+                    aria-label={`Select ${a.clientName} for batch generation`}
+                  />
+                  Select
+                </label>
+                <StatusPill status={a.status} />
+              </div>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -202,6 +353,31 @@ export default function ReportsPage() {
             </div>
           </Card>
         ))
+      )}
+
+      {/* Combined (group) reports */}
+      {groupDocs.length > 0 && (
+        <Card>
+          <h2 className="font-semibold">🧩 Combined reports</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            District roll-ups generated from a group of selected assessments.
+          </p>
+          <ul className="mt-3 divide-y divide-gray-100">
+            {groupDocs.map((doc) => (
+              <li key={doc.id}>
+                <Link
+                  href={`/reports/${doc.id}`}
+                  className="flex min-h-[44px] flex-wrap items-center justify-between gap-2 rounded-lg py-3 transition-colors hover:bg-violet-50/50"
+                >
+                  <span className="font-medium text-slate-900">{doc.title}</span>
+                  <Badge tone="green">
+                    Generated · {fmtUpdated(doc.updatedAt)}
+                  </Badge>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
 
       {/* Clery builder link (owned by another slice) */}
