@@ -22,8 +22,10 @@ import { renderMarkdown } from "@/components/MarkdownView";
 import { useMode } from "@/lib/mode";
 import { Btn, RiskBadge, EmptyState, PageHeader } from "@/components/ui";
 import ProdNotice from "@/components/ProdNotice";
+import { useBranding } from "@/lib/branding";
 
 export default function ReportPrintPage() {
+  const [branding] = useBranding();
   const params = useParams();
   const id = params.id as string;
   const [mode] = useMode();
@@ -104,6 +106,21 @@ export default function ReportPrintPage() {
 
       {/* Branded report header */}
       <div className="print-banner overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-indigo-600 to-indigo-700 p-6 text-white md:p-8">
+        {branding && (branding.companyName.trim() || branding.logoDataUrl) && (
+          <div className="mb-4 flex items-center gap-3">
+            {branding.logoDataUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={branding.logoDataUrl}
+                alt=""
+                className="h-11 max-w-[180px] rounded-lg bg-white object-contain p-1"
+              />
+            )}
+            {branding.companyName.trim() && (
+              <p className="text-lg font-bold">{branding.companyName.trim()}</p>
+            )}
+          </div>
+        )}
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-violet-200">
           School safety assessment
         </p>
@@ -120,7 +137,11 @@ export default function ReportPrintPage() {
           </div>
         )}
         <p className="mt-4 border-t border-white/20 pt-3 text-xs text-violet-200">
-          Prepared by {assessorNames} · Report date {doc.updatedAt.slice(0, 10)}
+          Prepared by{" "}
+          {branding?.companyName.trim()
+            ? `${branding.companyName.trim()} · `
+            : ""}
+          {assessorNames} · Report date {doc.updatedAt.slice(0, 10)}
         </p>
       </div>
 

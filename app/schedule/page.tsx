@@ -22,7 +22,7 @@ import ScheduleCalendar from "@/components/ScheduleCalendar";
 import { getReassessment } from "@/lib/schedule";
 
 const TEMPLATES = [
-  { id: "isc42", label: "42-Point ISC-Aligned Walkthrough" },
+  { id: "isc42", label: "ISC-Aligned Walkthrough" },
   { id: "fl-fssat", label: "Florida School Safety Assessment Tool (FSSAT)" },
   { id: "la", label: "Louisiana 116-Question Template" },
 ];

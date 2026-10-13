@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { db, uid, type Assessor } from "@/lib/store";
 import { useMode } from "@/lib/mode";
 import { getProfile, setProfile, firstNameOf, type MyProfile } from "@/lib/profile";
+import { useBranding, compressLogo } from "@/lib/branding";
 import { Card, PageHeader, Badge, Btn, Field, inputCls } from "@/components/ui";
 
 const CLEARANCE_LABEL: Record<Assessor["clearanceStatus"], { label: string; tone: "green" | "gray" | "red" }> = {
@@ -56,6 +57,14 @@ export default function ProfilePage() {
   const [title, setTitle] = useState("");
   const [addToDirectory, setAddToDirectory] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
+  const [branding, setBrandingState] = useBranding();
+  const [company, setCompany] = useState("");
+  const [logoMsg, setLogoMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (branding) setCompany(branding.companyName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branding?.companyName]);
 
   useEffect(() => {
     setLocalProfile(getProfile());
@@ -245,6 +254,79 @@ export default function ProfilePage() {
           Profiles live on this device for now. When accounts arrive with the
           shared database, your profile will follow your login instead.
         </p>
+      </Card>
+
+      {/* Report branding (white-label) */}
+      <Card>
+        <h2 className="font-semibold text-slate-900">Your business on reports</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Client-ready reports — the print view and shared HTML files — carry
+          your company name and logo, so the work goes out under your brand.
+        </p>
+        <div className="mt-3">
+          <Field label="Company name">
+            <input
+              className={inputCls}
+              value={company}
+              onChange={(e) => {
+                setCompany(e.target.value);
+                setBrandingState({
+                  companyName: e.target.value,
+                  logoDataUrl: branding?.logoDataUrl,
+                });
+              }}
+              placeholder="e.g. Red Team Solutions"
+            />
+          </Field>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          {branding?.logoDataUrl ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={branding.logoDataUrl}
+                alt="Your logo"
+                className="h-12 max-w-[180px] rounded-lg border border-slate-200 bg-white object-contain p-1"
+              />
+              <Btn
+                variant="ghost"
+                onClick={() =>
+                  setBrandingState({
+                    companyName: company,
+                    logoDataUrl: undefined,
+                  })
+                }
+              >
+                Remove logo
+              </Btn>
+            </>
+          ) : (
+            <label className="inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              🖼 Upload logo
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f) return;
+                  try {
+                    const dataUrl = await compressLogo(f);
+                    setBrandingState({
+                      companyName: company,
+                      logoDataUrl: dataUrl,
+                    });
+                    setLogoMsg("Logo saved — it will appear on reports.");
+                  } catch {
+                    setLogoMsg("Couldn't read that image — try a PNG or JPG.");
+                  }
+                }}
+              />
+            </label>
+          )}
+        </div>
+        {logoMsg && <p className="mt-2 text-sm text-slate-600">{logoMsg}</p>}
       </Card>
     </div>
   );

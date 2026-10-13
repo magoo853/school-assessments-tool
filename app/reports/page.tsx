@@ -34,6 +34,13 @@ import {
   exchangeFilename,
   HUB_EXCHANGE_VERSION,
 } from "@/lib/hubExport";
+import {
+  buildBackup,
+  backupFilename,
+  restoreBackup,
+  summarizeBackup,
+  type BackupFile,
+} from "@/lib/backup";
 
 const KIND_ICONS: Record<ReportKind, string> = {
   aar: "📋",
@@ -83,6 +90,7 @@ export default function ReportsPage() {
   const [mode] = useMode();
   const [tick, setTick] = useState(0);
   const [hubScope, setHubScope] = useState<"completed" | "all">("completed");
+  const [backupMsg, setBackupMsg] = useState<string | null>(null);
 
   const assessments = useMemo<Assessment[]>(() => {
     if (mode === "prod") return [];
@@ -617,6 +625,70 @@ export default function ReportsPage() {
             : `${db.assessments.list().length} assessment(s)`}{" "}
           · {db.schedules.list().length} schedule item(s) · format sat-hub-exchange v{HUB_EXCHANGE_VERSION}
         </p>
+      </Card>
+
+      {/* Full backup & restore */}
+      <Card>
+        <h2 className="font-semibold">Backup & Restore</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Everything on this device — assessments, reports, photos, schedules,
+          templates, and your profile — in one file. Download it to move to a
+          new phone or keep a safety copy. Your AI key is never included in a
+          backup.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Btn
+            variant="ghost"
+            className="justify-start"
+            onClick={() =>
+              download(
+                backupFilename(),
+                JSON.stringify(buildBackup(), null, 2),
+                "application/json;charset=utf-8"
+              )
+            }
+          >
+            💾 Download full backup (.json)
+          </Btn>
+          <label className="inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            ♻ Restore from backup…
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                try {
+                  const parsed: unknown = JSON.parse(await f.text());
+                  const summary = summarizeBackup(parsed);
+                  if ("error" in summary) {
+                    setBackupMsg(summary.error);
+                    return;
+                  }
+                  const when = summary.exportedAt
+                    ? new Date(summary.exportedAt).toLocaleString()
+                    : "unknown date";
+                  if (
+                    !window.confirm(
+                      `Restore the backup from ${when} (${summary.entries} data entries)? This REPLACES everything currently on this device.`
+                    )
+                  ) {
+                    return;
+                  }
+                  restoreBackup(parsed as BackupFile);
+                  window.location.reload();
+                } catch {
+                  setBackupMsg("Couldn't read that file — is it a backup .json?");
+                }
+              }}
+            />
+          </label>
+        </div>
+        {backupMsg && (
+          <p className="mt-2 text-sm text-red-600">{backupMsg}</p>
+        )}
       </Card>
     </div>
   );
