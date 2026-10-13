@@ -15,6 +15,11 @@ import {
   type ReassessInfo,
   type DashboardStats,
 } from "@/lib/data";
+import {
+  summarizeCa,
+  overdueFindings,
+  type CaSummary,
+} from "@/lib/ca";
 import { Card, PageHeader, Badge, RiskBadge, StatusPill } from "@/components/ui";
 import { FindingsRiskChart, AssessmentStatusDonut } from "@/components/DashboardCharts";
 
@@ -25,6 +30,8 @@ interface Snapshot {
   upcoming: { schedule: ScheduleItem; assessorName?: string }[];
   reassess: ReassessInfo[];
   topFindings: Finding[];
+  ca: CaSummary;
+  overdue: { finding: Finding; clientName: string }[];
   riskCounts: Record<string, number>;
   statusCounts: Record<string, number>;
 }
@@ -56,11 +63,21 @@ function loadSnapshot(): Snapshot {
   for (const f of db.findings.list()) if (f.risk in riskCounts) riskCounts[f.risk] += 1;
   const statusCounts: Record<string, number> = { draft: 0, in_progress: 0, completed: 0 };
   for (const a of db.assessments.list()) if (a.status in statusCounts) statusCounts[a.status] += 1;
+  const allFindings = db.findings.list();
+  const ca = summarizeCa(allFindings);
+  const overdue = overdueFindings(allFindings)
+    .slice(0, 8)
+    .map((finding) => ({
+      finding,
+      clientName: db.assessments.get(finding.assessmentId)?.clientName ?? "—",
+    }));
   return {
     stats: getDashboardStats(),
     upcoming,
     reassess,
     topFindings,
+    ca,
+    overdue,
     riskCounts,
     statusCounts,
   };
@@ -129,6 +146,81 @@ export default function SummaryPage() {
           <AssessmentStatusDonut counts={snap?.statusCounts ?? {}} />
         </Card>
       </div>
+
+      {/* Corrective actions */}
+      <Card className="print:break-inside-avoid">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-semibold text-slate-900">Corrective actions</h2>
+          <Link
+            href="/findings?ca=overdue"
+            className="text-sm font-medium text-violet-700 hover:underline print:hidden"
+          >
+            Overdue actions →
+          </Link>
+        </div>
+        {snap && snap.ca.total > 0 ? (
+          <>
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              {[
+                { label: "Open", value: snap.ca.open },
+                { label: "In progress", value: snap.ca.inProgress },
+                { label: "Corrected / verified", value: snap.ca.corrected + snap.ca.verified },
+                { label: "⚠ Overdue", value: snap.ca.overdue },
+              ].map((c) => (
+                <div
+                  key={c.label}
+                  className={`rounded-2xl border p-4 ${
+                    c.label === "⚠ Overdue" && c.value > 0
+                      ? "border-rose-200 bg-rose-50/60"
+                      : "border-slate-200 bg-white"
+                  }`}
+                >
+                  <p
+                    className={`text-3xl font-bold ${
+                      c.label === "⚠ Overdue" && c.value > 0
+                        ? "text-rose-700"
+                        : "text-slate-900"
+                    }`}
+                  >
+                    {c.value}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">{c.label}</p>
+                </div>
+              ))}
+            </div>
+            {snap.overdue.length > 0 ? (
+              <ul className="mt-4 divide-y divide-slate-100">
+                {snap.overdue.map(({ finding: f, clientName }) => (
+                  <li
+                    key={f.id}
+                    className="flex items-start justify-between gap-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-900">
+                        {f.gapText}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {clientName}
+                        {f.caDueDate ? ` · due ${f.caDueDate}` : ""}
+                        {f.caOwner ? ` · ${f.caOwner}` : ""}
+                      </p>
+                    </div>
+                    <Badge tone="red">⚠ Overdue</Badge>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-slate-500">
+                No overdue corrective actions.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-slate-500">
+            No corrective actions recorded.
+          </p>
+        )}
+      </Card>
 
       {/* Top findings */}
       <Card className="print:break-inside-avoid">

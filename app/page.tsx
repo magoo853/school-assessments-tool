@@ -11,6 +11,11 @@ import {
   getReassessment,
   type ReassessInfo,
 } from "@/lib/data";
+import {
+  summarizeCa,
+  overdueFindings,
+  type CaSummary,
+} from "@/lib/ca";
 import { Card, PageHeader, Badge, RiskBadge, StatusPill, EmptyState } from "@/components/ui";
 import { FindingsRiskChart, AssessmentStatusDonut } from "@/components/DashboardCharts";
 import ProdNotice from "@/components/ProdNotice";
@@ -110,11 +115,18 @@ interface UpcomingRow {
   assessorName?: string;
 }
 
+interface OverdueRow {
+  finding: Finding;
+  clientName: string;
+}
+
 interface Snapshot {
   stats: ReturnType<typeof getDashboardStats>;
   upcoming: UpcomingRow[];
   reassess: ReassessInfo[];
   topFindings: Finding[];
+  ca: CaSummary;
+  overdue: OverdueRow[];
   assessorCount: number;
   cleryCount: number;
   riskCounts: Record<string, number>;
@@ -158,11 +170,22 @@ function loadSnapshot(): Snapshot {
   for (const a of db.assessments.list()) {
     if (a.status in statusCounts) statusCounts[a.status] += 1;
   }
+  const allFindings = db.findings.list();
+  const ca = summarizeCa(allFindings);
+  const overdue = overdueFindings(allFindings)
+    .slice(0, 5)
+    .map((finding) => ({
+      finding,
+      clientName:
+        db.assessments.get(finding.assessmentId)?.clientName ?? "—",
+    }));
   return {
     stats,
     upcoming,
     reassess,
     topFindings,
+    ca,
+    overdue,
     assessorCount: db.assessors.list().length,
     cleryCount: db.cleryReports.list().length,
     riskCounts,
@@ -296,6 +319,103 @@ export default function DashboardPage() {
           href="/findings?risk=high"
         />
       </div>
+
+      {/* Corrective actions — open + overdue drill down to /findings */}
+      <Card>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-semibold text-slate-900">Corrective actions</h2>
+          <Link
+            href="/findings"
+            className="flex min-h-[44px] items-center text-sm font-medium text-violet-700 hover:underline"
+          >
+            All findings →
+          </Link>
+        </div>
+        {!snap || snap.ca.total === 0 ? (
+          <EmptyState
+            title="No corrective actions yet"
+            body={
+              isProd
+                ? "Tables are empty in PROD mode — switch to DEMO to see sample data."
+                : "Findings from assessments become corrective actions here, tracked to verification."
+            }
+          />
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              <Link
+                href="/findings?ca=open"
+                className="group block min-h-[44px] rounded-xl border border-slate-200/70 bg-slate-50/60 px-4 py-3 transition-all hover:border-violet-300 hover:bg-violet-50/50"
+              >
+                <p className="text-2xl font-bold tracking-tight text-slate-900 group-hover:text-violet-700">
+                  {snap.ca.open}
+                </p>
+                <p className="mt-0.5 text-xs font-medium text-slate-500">
+                  Open →
+                </p>
+              </Link>
+              <Link
+                href="/findings?ca=in_progress"
+                className="group block min-h-[44px] rounded-xl border border-slate-200/70 bg-slate-50/60 px-4 py-3 transition-all hover:border-violet-300 hover:bg-violet-50/50"
+              >
+                <p className="text-2xl font-bold tracking-tight text-slate-900 group-hover:text-violet-700">
+                  {snap.ca.inProgress}
+                </p>
+                <p className="mt-0.5 text-xs font-medium text-slate-500">
+                  In progress →
+                </p>
+              </Link>
+              <Link
+                href="/findings?ca=overdue"
+                className={`group block min-h-[44px] rounded-xl border px-4 py-3 transition-all ${
+                  snap.ca.overdue > 0
+                    ? "border-rose-200 bg-rose-50/70 hover:border-rose-300 hover:bg-rose-50"
+                    : "border-slate-200/70 bg-slate-50/60 hover:border-violet-300 hover:bg-violet-50/50"
+                }`}
+              >
+                <p
+                  className={`text-2xl font-bold tracking-tight ${
+                    snap.ca.overdue > 0 ? "text-rose-700" : "text-slate-900"
+                  }`}
+                >
+                  {snap.ca.overdue}
+                </p>
+                <p className="mt-0.5 text-xs font-medium text-slate-500">
+                  ⚠ Overdue →
+                </p>
+              </Link>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              {snap.ca.actionable} awaiting correction · {snap.ca.corrected}{" "}
+              corrected · {snap.ca.verified} verified
+            </p>
+            {snap.overdue.length > 0 && (
+              <ul className="mt-2 divide-y divide-gray-100">
+                {snap.overdue.map(({ finding: f, clientName }) => (
+                  <li key={f.id}>
+                    <Link
+                      href={`/assessments/${f.assessmentId}`}
+                      className="flex min-h-[44px] items-start justify-between gap-3 rounded-lg py-3 transition-colors hover:bg-rose-50/60"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900">
+                          {f.gapText}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {clientName}
+                          {f.caDueDate ? ` · due ${f.caDueDate}` : ""}
+                          {f.caOwner ? ` · ${f.caOwner}` : ""}
+                        </p>
+                      </div>
+                      <Badge tone="red">⚠ Overdue</Badge>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </Card>
 
       {/* Charts */}
       <div className="grid gap-4 lg:grid-cols-2">

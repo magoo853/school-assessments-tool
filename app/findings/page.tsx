@@ -10,6 +10,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { db, type Finding, type Risk, type CaStatus } from "@/lib/store";
+import { caStatusOf, isCaOverdue } from "@/lib/ca";
 import { getCheckpoint } from "@/lib/templates";
 import { resolveTemplate, allTemplates } from "@/lib/customTemplates";
 import { photosFor } from "@/lib/photos";
@@ -50,14 +51,8 @@ const CA_LABELS: Record<CaStatus, string> = {
   verified: "Verified",
 };
 
-function caStatusOf(f: Finding): CaStatus {
-  return f.caStatus ?? "open";
-}
-
 function isOverdue(f: Finding): boolean {
-  const s = caStatusOf(f);
-  if (!f.caDueDate || (s !== "open" && s !== "in_progress")) return false;
-  return f.caDueDate < new Date().toISOString().slice(0, 10);
+  return isCaOverdue(f);
 }
 
 /** Small non-interactive thumbnail strip for list rows. */
