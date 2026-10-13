@@ -8,6 +8,7 @@ import { db, ensureSeed, clearAllData } from "@/lib/store";
 import { installSeed } from "@/lib/seed";
 import { useProfile, firstNameOf } from "@/lib/profile";
 import { onSwUpdate, applySwUpdate } from "@/lib/swUpdate";
+import GlobalSearch from "@/components/GlobalSearch";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: "📊" },
@@ -248,6 +249,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 ✕
               </button>
             </div>
+            <div className="border-b border-white/10 px-4 py-3">
+              <GlobalSearch onNavigate={() => setDrawerOpen(false)} />
+            </div>
             <div className="flex-1 overflow-y-auto">
               <NavLinks onNavigate={() => setDrawerOpen(false)} />
             </div>
@@ -265,10 +269,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           >
             ☰
           </button>
-          <p className="text-sm font-semibold text-white">
+          <p className="hidden text-sm font-semibold text-white lg:block">
             School <span className="text-gradient">Assessments</span>{" "}
             <span className="font-normal text-slate-400">Tool</span>
           </p>
+          <div className="hidden min-w-0 max-w-xl flex-1 sm:block">
+            <GlobalSearch />
+          </div>
           <OfflineBadge />
           {/* Demo / Prod segmented control */}
           <div className="ml-auto">

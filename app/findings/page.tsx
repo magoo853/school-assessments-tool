@@ -2,7 +2,8 @@
  * All-findings view: every finding across all assessments in one
  * filterable list. Risk chips + client/school filter + domain filter + text
  * search; each row drills into its assessment. Accepts
- * ?risk=high|moderate|low and ?client=<name> to pre-filter.
+ * ?risk=high|moderate|low, ?client=<name>, and ?q=<text> (the global
+ * header search deep-links findings this way) to pre-filter.
  */
 "use client";
 
@@ -134,7 +135,8 @@ function FindingsInner() {
       ? initialCa
       : "all"
   );
-  const [query, setQuery] = useState("");
+  const initialQuery = searchParams.get("q");
+  const [query, setQuery] = useState(initialQuery ?? "");
   const [rows, setRows] = useState<FindingRow[]>([]);
 
   useEffect(() => {
