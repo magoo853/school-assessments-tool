@@ -17,6 +17,7 @@ import { resolveTemplate, allTemplates } from "@/lib/customTemplates";
 import { useMode } from "@/lib/mode";
 import ProdNotice from "@/components/ProdNotice";
 import TemplatePickerModal from "@/components/TemplatePickerModal";
+import ReassessModal from "@/components/ReassessModal";
 import {
   Card,
   PageHeader,
@@ -215,6 +216,8 @@ function AssessmentsInner() {
   const [mode] = useMode();
   const [showNew, setShowNew] = useState(false);
   const [switchTarget, setSwitchTarget] = useState<Assessment | null>(null);
+  const [reassessTarget, setReassessTarget] = useState<Assessment | null>(null);
+  const router = useRouter();
   const [, setTick] = useState(0);
   const searchParams = useSearchParams();
   const initialStatus = searchParams.get("status");
@@ -310,6 +313,15 @@ function AssessmentsInner() {
                     >
                       ⇄ Change template
                     </button>
+                    {a.status === "completed" && (
+                      <button
+                        type="button"
+                        onClick={() => setReassessTarget(a)}
+                        className="pointer-events-auto inline-flex min-h-[36px] items-center rounded-full border border-emerald-300 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 transition-colors hover:border-emerald-500 hover:text-emerald-800"
+                      >
+                        ↻ Reassess
+                      </button>
+                    )}
                   </div>
                   <div className="mt-3">
                     <div className="flex items-center justify-between text-xs text-gray-500">
@@ -341,6 +353,13 @@ function AssessmentsInner() {
           assessment={switchTarget}
           onClose={() => setSwitchTarget(null)}
           onChanged={() => setTick((t) => t + 1)}
+        />
+      )}
+      {reassessTarget && (
+        <ReassessModal
+          source={reassessTarget}
+          onClose={() => setReassessTarget(null)}
+          onCreated={(id) => router.push(`/assessments/${id}`)}
         />
       )}
     </div>

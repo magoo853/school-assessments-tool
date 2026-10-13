@@ -29,6 +29,7 @@ import { useMode } from "@/lib/mode";
 import ProdNotice from "@/components/ProdNotice";
 import FslWizard from "@/components/FslWizard";
 import TemplatePickerModal from "@/components/TemplatePickerModal";
+import ReassessModal from "@/components/ReassessModal";
 import {
   Card,
   PageHeader,
@@ -587,6 +588,7 @@ export default function TakerPage() {
   const [tick, setTick] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [reassessing, setReassessing] = useState(false);
 
   useEffect(() => {
     setTick((t) => t + 1);
@@ -694,6 +696,11 @@ export default function TakerPage() {
             <Btn variant="ghost" onClick={() => setSwitching(true)}>
               ⇄ Template
             </Btn>
+            {completed && (
+              <Btn variant="ghost" onClick={() => setReassessing(true)}>
+                ↻ Reassess
+              </Btn>
+            )}
             {!completed ? (
               <Btn onClick={() => setConfirming(true)}>Complete assessment</Btn>
             ) : (
@@ -827,6 +834,13 @@ export default function TakerPage() {
           assessment={assessment}
           onClose={() => setSwitching(false)}
           onChanged={() => setTick((t) => t + 1)}
+        />
+      )}
+      {reassessing && (
+        <ReassessModal
+          source={assessment}
+          onClose={() => setReassessing(false)}
+          onCreated={(id) => router.push(`/assessments/${id}`)}
         />
       )}
       {confirming && (

@@ -20,6 +20,8 @@ import ProdNotice from "@/components/ProdNotice";
 import { AssessorCompact, AssessorUnassigned } from "@/components/AssessorCard";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import { getReassessment } from "@/lib/schedule";
+import { latestCompletedFor, copyResponsesForward } from "@/lib/reassess";
+import { deriveFindings } from "@/lib/findings";
 
 const TEMPLATES = [
   { id: "isc42", label: "ISC-Aligned Walkthrough" },
@@ -273,6 +275,14 @@ function ScheduleRow({
       status: "in_progress",
     });
     db.assessments.upsert(assessment);
+    // Reassessment visits start pre-loaded with the client's most recent
+    // completed answers (same rule as the Reassess action): the visit
+    // confirms what changed instead of starting from a blank walkthrough.
+    const prior = latestCompletedFor(item.clientName);
+    if (prior) {
+      const copied = copyResponsesForward(prior, assessment);
+      if (copied > 0) deriveFindings(assessment.id);
+    }
     db.schedules.upsert({
       ...item,
       assessmentId: assessment.id,
