@@ -70,6 +70,21 @@ export function deletePhoto(id: string): void {
   writeAll(readAll().filter((d) => d.id !== id));
 }
 
+/** All stored photo docs (storage-usage / orphan-cleanup callers). */
+export function listPhotos(): PhotoDoc[] {
+  return readAll();
+}
+
+/** Delete several photos in one write. Returns how many were removed. */
+export function deletePhotos(ids: string[]): number {
+  if (!ids.length) return 0;
+  const drop = new Set(ids);
+  const all = readAll();
+  const kept = all.filter((d) => !drop.has(d.id));
+  if (kept.length !== all.length) writeAll(kept);
+  return all.length - kept.length;
+}
+
 function loadBitmap(file: Blob): Promise<ImageBitmap> {
   if (typeof createImageBitmap === "function") {
     return createImageBitmap(file);

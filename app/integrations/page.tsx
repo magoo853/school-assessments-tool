@@ -12,6 +12,16 @@
 import { useEffect, useState } from "react";
 import { Card, PageHeader, Badge, Btn, inputCls } from "@/components/ui";
 import { useAiEnabled, getAiKey, setAiKey } from "@/lib/aiSettings";
+import {
+  getStorageUsage,
+  getOrphanedPhotos,
+  deleteOrphanedPhotos,
+  storageLevel,
+  formatBytes,
+  photosByteSize,
+  type UsageSummary,
+} from "@/lib/storage";
+import type { PhotoDoc } from "@/lib/photos";
 
 interface Health {
   configured: boolean;
@@ -28,6 +38,26 @@ export default function IntegrationsPage() {
   const [keyInput, setKeyInput] = useState("");
   const [deviceWorking, setDeviceWorking] = useState<boolean | null>(null);
   const [keyMsg, setKeyMsg] = useState<string | null>(null);
+  const [usage, setUsage] = useState<UsageSummary | null>(null);
+  const [orphans, setOrphans] = useState<PhotoDoc[]>([]);
+  const [confirmCleanup, setConfirmCleanup] = useState(false);
+  const [storageMsg, setStorageMsg] = useState<string | null>(null);
+
+  const loadStorage = async () => {
+    setUsage(await getStorageUsage());
+    setOrphans(getOrphanedPhotos());
+    setConfirmCleanup(false);
+  };
+
+  const cleanupOrphans = async () => {
+    const removed = deleteOrphanedPhotos();
+    setStorageMsg(
+      removed > 0
+        ? `Removed ${removed} orphaned photo${removed === 1 ? "" : "s"}.`
+        : "No orphaned photos to remove."
+    );
+    await loadStorage();
+  };
 
   const testKey = async (key: string): Promise<boolean> => {
     try {
@@ -59,6 +89,7 @@ export default function IntegrationsPage() {
 
   useEffect(() => {
     void check();
+    void loadStorage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -225,6 +256,144 @@ export default function IntegrationsPage() {
             ))}
           </div>
         </div>
+      </Card>
+
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Device storage</h2>
+            <p className="mt-1 max-w-xl text-sm text-slate-500">
+              Assessments and photo evidence live on this device until shared
+              storage lands. Photos are the biggest consumer — when storage
+              fills up, new photos stop saving, so keep an eye on the headroom
+              before a site visit.
+            </p>
+          </div>
+          {usage ? (
+            <Badge
+              tone={
+                storageLevel(usage.fraction) === "critical"
+                  ? "red"
+                  : storageLevel(usage.fraction) === "warning"
+                    ? "yellow"
+                    : "green"
+              }
+            >
+              {Math.round(usage.fraction * 100)}% used
+              {usage.quotaIsEstimate ? " (est.)" : ""}
+            </Badge>
+          ) : (
+            <Badge tone="gray">Checking…</Badge>
+          )}
+        </div>
+
+        {usage && (
+          <>
+            <div
+              className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100"
+              role="progressbar"
+              aria-valuenow={Math.round(usage.fraction * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Device storage used"
+            >
+              <div
+                className={`h-full rounded-full ${
+                  storageLevel(usage.fraction) === "critical"
+                    ? "bg-red-500"
+                    : storageLevel(usage.fraction) === "warning"
+                      ? "bg-amber-500"
+                      : "bg-emerald-500"
+                }`}
+                style={{
+                  width: `${Math.min(100, Math.max(1, usage.fraction * 100))}%`,
+                }}
+              />
+            </div>
+            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-xs text-slate-400">Used on this device</dt>
+                <dd className="font-medium text-slate-800">
+                  {formatBytes(usage.totalBytes)} of{" "}
+                  {formatBytes(usage.quotaBytes)}
+                  {usage.quotaIsEstimate ? " (typical limit)" : ""}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-400">Photo evidence</dt>
+                <dd className="font-medium text-slate-800">
+                  {formatBytes(usage.photosBytes)} ·{" "}
+                  {Math.round(usage.photosShare * 100)}% of app data
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-400">Largest stores</dt>
+                <dd className="font-medium text-slate-800">
+                  {usage.byKey
+                    .slice(0, 3)
+                    .map((k) => `${k.key.replace("sat_", "")} ${formatBytes(k.bytes)}`)
+                    .join(" · ") || "Nothing stored yet"}
+                </dd>
+              </div>
+            </dl>
+
+            {storageLevel(usage.fraction) !== "ok" && (
+              <p
+                className={`mt-4 rounded-xl p-3 text-sm ${
+                  storageLevel(usage.fraction) === "critical"
+                    ? "bg-red-50 text-red-800"
+                    : "bg-amber-50 text-amber-800"
+                }`}
+              >
+                {storageLevel(usage.fraction) === "critical"
+                  ? "Storage is almost full — new photos may fail to save. Export a backup (Profile → Backup), then clean up orphaned photos below or remove old data."
+                  : "Storage is getting full. Consider exporting a backup (Profile → Backup) and cleaning up orphaned photos below before your next site visit."}
+              </p>
+            )}
+
+            <div className="mt-4 rounded-xl bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-800">
+                Orphaned photos
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                {orphans.length === 0
+                  ? "None — every stored photo is attached to a walkthrough response or finding."
+                  : `${orphans.length} photo${orphans.length === 1 ? "" : "s"} (${formatBytes(photosByteSize(orphans))}) no longer attached to any response or finding — leftovers from deleted items. Deleting them frees space and changes nothing you can see in the app.`}
+              </p>
+              {orphans.length > 0 &&
+                (confirmCleanup ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-slate-700">
+                      Delete {orphans.length} orphaned photo
+                      {orphans.length === 1 ? "" : "s"}? This can&apos;t be
+                      undone.
+                    </span>
+                    <Btn onClick={cleanupOrphans}>Yes, delete them</Btn>
+                    <Btn
+                      variant="ghost"
+                      onClick={() => setConfirmCleanup(false)}
+                    >
+                      Keep them
+                    </Btn>
+                  </div>
+                ) : (
+                  <Btn
+                    className="mt-3"
+                    variant="ghost"
+                    onClick={() => setConfirmCleanup(true)}
+                  >
+                    Clean up orphaned photos
+                  </Btn>
+                ))}
+              {storageMsg && (
+                <p className="mt-2 text-sm text-slate-600">{storageMsg}</p>
+              )}
+              <Btn variant="ghost" className="mt-2" onClick={loadStorage}>
+                ↻ Re-check storage
+              </Btn>
+            </div>
+          </>
+        )}
       </Card>
 
       <Card>
