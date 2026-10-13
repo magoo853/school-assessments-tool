@@ -366,8 +366,8 @@ export default function IntegrationsPage() {
                 }`}
               >
                 {storageLevel(usage.fraction) === "critical"
-                  ? "Storage is almost full — new photos may fail to save. Export a backup (Profile → Backup), then clean up orphaned photos below or remove old data."
-                  : "Storage is getting full. Consider exporting a backup (Profile → Backup) and cleaning up orphaned photos below before your next site visit."}
+                  ? "Storage is almost full — new photos may fail to save. Export a backup (Reports & Exports → Backup & Restore), then clean up orphaned photos below or remove old data."
+                  : "Storage is getting full. Consider exporting a backup (Reports & Exports → Backup & Restore) and cleaning up orphaned photos below before your next site visit."}
               </p>
             )}
 
