@@ -54,7 +54,7 @@ creates its own `assessment_templates` rows).
   "status": "draft" | "in_progress" | "completed",
   "scheduledDate": "2026-09-14" | null,
   "completedDate": "2026-09-15" | null,
-  "score": 84.2,              // % of answered checkpoints passed, 1 decimal; null if none answered
+  "score": 84.2,              // % of yes/no checkpoints passed (yes / (yes + no); N/A excluded), 1 decimal; null if none answered
   "summary": "...",           // provenance + assessors + focus notes
   "responses": [
     { "domain": "...", "number": "1.1", "question": "...",

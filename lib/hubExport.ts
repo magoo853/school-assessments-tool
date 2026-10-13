@@ -142,7 +142,9 @@ function exportAssessment(a: Assessment): ExchangeAssessment {
     const hit = template.domains
       .map((d) => ({ d, c: d.checkpoints.find((c) => c.key === r.checkpointKey) }))
       .find((x) => x.c);
-    answered += 1;
+    // Score counts only yes/no answers — N/A is "not applicable," not a
+    // failure (matches the documented formula: yes / (yes + no)).
+    if (r.answer === "yes" || r.answer === "no") answered += 1;
     if (r.answer === "yes") yes += 1;
     outResponses.push({
       domain: hit?.d.name ?? "General",

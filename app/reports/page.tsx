@@ -618,6 +618,18 @@ export default function ReportsPage() {
             : `${db.assessments.list().length} assessment(s)`}{" "}
           · {db.schedules.list().length} schedule item(s) · format sat-hub-exchange v{HUB_EXCHANGE_VERSION}
         </p>
+        {(() => {
+          const photoCount =
+            db.findings.list().reduce((n, f) => n + (f.photoIds?.length ?? 0), 0) +
+            db.responses.list().reduce((n, r) => n + (r.photoIds?.length ?? 0), 0);
+          return photoCount > 0 ? (
+            <p className="mt-1 text-xs font-medium text-amber-600">
+              ⚠ {photoCount} evidence photo{photoCount === 1 ? "" : "s"} on this
+              device do not transfer in the v1 export — the Hub receives the
+              findings and notes without the photos.
+            </p>
+          ) : null;
+        })()}
       </Card>
 
       {/* Full backup & restore */}

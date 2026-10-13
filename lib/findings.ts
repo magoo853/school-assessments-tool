@@ -73,8 +73,20 @@ export function deriveFindings(assessmentId: string): Finding[] {
   const previous = db.findings.filter((f) => f.assessmentId === assessmentId);
   const caByKey = new Map<string, Partial<Finding>>();
   const keyByOldFindingId = new Map<string, string>();
+  // Photo evidence also survives re-derivation (audit C3): photos the
+  // assessor attached to the previous finding stay attached, and photos
+  // captured at the checkpoint during the walkthrough flow in — both
+  // report builders read photos from findings only.
+  const photosByKey = new Map<string, string[]>();
+  const addPhotos = (key: string, ids: string[] | undefined) => {
+    if (!ids?.length) return;
+    const cur = photosByKey.get(key) ?? [];
+    for (const id of ids) if (!cur.includes(id)) cur.push(id);
+    photosByKey.set(key, cur);
+  };
   for (const pf of previous) {
     keyByOldFindingId.set(pf.id, pf.checkpointKey);
+    addPhotos(pf.checkpointKey, pf.photoIds);
     const ca: Partial<Finding> = {};
     if (pf.caStatus) ca.caStatus = pf.caStatus;
     if (pf.caOwner) ca.caOwner = pf.caOwner;
@@ -90,6 +102,7 @@ export function deriveFindings(assessmentId: string): Finding[] {
   const nos = db.responses.filter(
     (r) => r.assessmentId === assessmentId && r.answer === "no"
   );
+  for (const r of nos) addPhotos(r.checkpointKey, r.photoIds);
 
   const findings: Finding[] = [];
   for (const r of nos) {
@@ -97,6 +110,7 @@ export function deriveFindings(assessmentId: string): Finding[] {
     const gapText = hit ? hit.checkpoint.gap : FALLBACK_GAP;
     const recommendation = hit ? hit.checkpoint.rec : GENERIC_REC;
     const risk: Risk = r.risk ?? "moderate";
+    const photoIds = photosByKey.get(r.checkpointKey);
     const finding: Finding = {
       id: uid("fnd"),
       assessmentId,
@@ -105,6 +119,7 @@ export function deriveFindings(assessmentId: string): Finding[] {
       risk,
       note: r.note || "",
       recommendation,
+      ...(photoIds?.length ? { photoIds } : {}),
       ...(caByKey.get(r.checkpointKey) ?? {}),
     };
     db.findings.upsert(finding);
