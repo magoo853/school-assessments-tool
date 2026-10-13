@@ -12,6 +12,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { db, type Finding, type Risk, type CaStatus } from "@/lib/store";
 import { caStatusOf, isCaOverdue } from "@/lib/ca";
+import { download } from "@/lib/reports";
+import {
+  buildFindingsCsv,
+  caPrintLine,
+  exportCounts,
+  findingsCsvFilename,
+} from "@/lib/findingsExport";
 import { getCheckpoint } from "@/lib/templates";
 import { resolveTemplate, allTemplates } from "@/lib/customTemplates";
 import { photosFor } from "@/lib/photos";
@@ -199,16 +206,50 @@ function FindingsInner() {
     setRows(loadRows());
   };
 
+  const printCounts = exportCounts(filtered);
+  const today = new Date().toISOString().slice(0, 10);
+  const exportBtnCls =
+    "inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:border-violet-300 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-50 print:hidden";
+
   return (
     <div>
       <PageHeader
         title="Findings"
         subtitle="Every finding across all assessments — filter, search, and drill into the source assessment."
+        actions={
+          <>
+            <button
+              type="button"
+              disabled={filtered.length === 0}
+              onClick={() =>
+                download(
+                  findingsCsvFilename(
+                    clientFilter !== "all" ? clientFilter : null,
+                    today
+                  ),
+                  buildFindingsCsv(filtered),
+                  "text/csv;charset=utf-8"
+                )
+              }
+              className={exportBtnCls}
+            >
+              📥 Export CSV ({filtered.length})
+            </button>
+            <button
+              type="button"
+              disabled={filtered.length === 0}
+              onClick={() => window.print()}
+              className={exportBtnCls}
+            >
+              🖨 Print
+            </button>
+          </>
+        }
       />
       {mode === "prod" && <ProdNotice />}
 
       {/* Filters */}
-      <div className="mb-4 space-y-3">
+      <div className="mb-4 space-y-3 print:hidden">
         <div className="flex flex-wrap gap-2">
           {RISK_FILTERS.map((f) => (
             <button
@@ -301,6 +342,21 @@ function FindingsInner() {
           body="Try a different risk level, domain, or search term."
         />
       ) : (
+        <>
+        {/* Print-only register header: states exactly what this
+            printout contains (the current filtered set). */}
+        <div className="mb-4 hidden print:block">
+          <p className="text-sm text-slate-700">
+            Findings register · {today} · {printCounts.total} finding
+            {printCounts.total === 1 ? "" : "s"} ({printCounts.high} high,{" "}
+            {printCounts.moderate} moderate, {printCounts.low} low) ·{" "}
+            {printCounts.open} corrective action
+            {printCounts.open === 1 ? "" : "s"} open
+            {printCounts.overdue > 0 &&
+              ` · ${printCounts.overdue} overdue`}
+            {clientFilter !== "all" && ` · Client: ${clientFilter}`}
+          </p>
+        </div>
         <Card className="!p-2 md:!p-3">
           <ul className="divide-y divide-slate-100">
             {filtered.map((r) => {
@@ -325,14 +381,18 @@ function FindingsInner() {
                         {` · ${r.domainName}`}
                       </p>
                       <FindingThumbs photoIds={f.photoIds} />
+                      <p className="mt-1 hidden text-xs text-slate-600 print:block">
+                        {caPrintLine(f)}
+                      </p>
                     </div>
                     <div className="shrink-0 pt-0.5">
                       <RiskBadge risk={f.risk} />
                     </div>
                   </Link>
 
-                  {/* Corrective-action tracker */}
-                  <div className="flex flex-wrap items-center gap-2 px-2 pb-3 pt-1 md:px-3">
+                  {/* Corrective-action tracker (interactive — screen only;
+                      print shows the caPrintLine summary instead) */}
+                  <div className="flex flex-wrap items-center gap-2 px-2 pb-3 pt-1 md:px-3 print:hidden">
                     <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
                       Action
                     </span>
@@ -393,6 +453,7 @@ function FindingsInner() {
             })}
           </ul>
         </Card>
+        </>
       )}
     </div>
   );
