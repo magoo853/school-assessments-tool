@@ -31,6 +31,10 @@ import FslWizard from "@/components/FslWizard";
 import TemplatePickerModal from "@/components/TemplatePickerModal";
 import ReassessModal from "@/components/ReassessModal";
 import {
+  countAssessmentData,
+  deleteAssessmentCascade,
+} from "@/lib/deleteAssessment";
+import {
   Card,
   PageHeader,
   Btn,
@@ -589,6 +593,7 @@ export default function TakerPage() {
   const [confirming, setConfirming] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [reassessing, setReassessing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setTick((t) => t + 1);
@@ -829,6 +834,69 @@ export default function TakerPage() {
         </>
       )}
 
+      {/* Danger zone */}
+      <div className="mt-8 rounded-2xl border border-red-200 bg-red-50/50 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-red-800">
+              Delete this assessment
+            </p>
+            <p className="mt-0.5 text-xs text-red-600">
+              Removes the assessment and everything derived from it. For
+              mistakes and test data — export a backup first if unsure.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDeleting(true)}
+            className="min-h-[44px] rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 hover:bg-red-100"
+          >
+            🗑 Delete assessment
+          </button>
+        </div>
+      </div>
+
+      {deleting && (
+        <Modal title="Delete this assessment?" onClose={() => setDeleting(false)}>
+          {(() => {
+            const c = countAssessmentData(assessment.id);
+            const parts = [
+              c.responses ? `${c.responses} response${c.responses === 1 ? "" : "s"}` : null,
+              c.findings ? `${c.findings} finding${c.findings === 1 ? "" : "s"}` : null,
+              c.reports ? `${c.reports} report${c.reports === 1 ? "" : "s"}` : null,
+              c.equipment ? `${c.equipment} equipment item${c.equipment === 1 ? "" : "s"}` : null,
+              c.fslRecords ? "its FSL record" : null,
+            ].filter(Boolean);
+            return (
+              <div className="space-y-3">
+                <p className="text-sm text-slate-600">
+                  <strong>{assessment.clientName}</strong> — this permanently
+                  removes the assessment
+                  {parts.length ? `, including ${parts.join(", ")}` : ""}.
+                  {c.schedulesUnlinked > 0 &&
+                    " The linked schedule entry stays and is unlinked."}{" "}
+                  This cannot be undone.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      deleteAssessmentCascade(assessment.id);
+                      router.push("/assessments");
+                    }}
+                    className="min-h-[44px] flex-1 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 sm:flex-none sm:px-8"
+                  >
+                    Delete permanently
+                  </button>
+                  <Btn variant="ghost" onClick={() => setDeleting(false)}>
+                    Cancel
+                  </Btn>
+                </div>
+              </div>
+            );
+          })()}
+        </Modal>
+      )}
       {switching && (
         <TemplatePickerModal
           assessment={assessment}
