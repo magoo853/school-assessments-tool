@@ -56,11 +56,10 @@ export default function ReportPrintPage() {
 
   if (!loaded) return null;
 
-  if (mode === "prod" || !doc) {
+  if (!doc) {
     return (
       <div>
         <PageHeader title="Print report" />
-        {mode === "prod" && <ProdNotice />}
         <EmptyState
           title="Report not found"
           body="This report may have been deleted."

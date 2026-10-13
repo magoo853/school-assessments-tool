@@ -380,7 +380,7 @@ export default function DashboardPage() {
             title="No corrective actions yet"
             body={
               isProd
-                ? "Tables are empty in PROD mode — switch to DEMO to see sample data."
+                ? "Nothing here yet in PROD — your real data will appear as you work."
                 : "Findings from assessments become corrective actions here, tracked to verification."
             }
           />
@@ -506,7 +506,7 @@ export default function DashboardPage() {
               title="No upcoming assessments"
               body={
                 isProd
-                  ? "Tables are empty in PROD mode — switch to DEMO to see sample data."
+                  ? "Nothing here yet in PROD — your real data will appear as you work."
                   : "Schedule a visit to see it here."
               }
             />
@@ -557,7 +557,7 @@ export default function DashboardPage() {
               title="Nothing due"
               body={
                 isProd
-                  ? "Tables are empty in PROD mode — switch to DEMO to see sample data."
+                  ? "Nothing here yet in PROD — your real data will appear as you work."
                   : "Completed assessments get a 12-month reassessment clock automatically."
               }
             />
@@ -604,7 +604,7 @@ export default function DashboardPage() {
             title="No findings yet"
             body={
               isProd
-                ? "Tables are empty in PROD mode — switch to DEMO to see sample data."
+                ? "Nothing here yet in PROD — your real data will appear as you work."
                 : "Findings from completed assessments will surface here, ranked by risk."
             }
           />

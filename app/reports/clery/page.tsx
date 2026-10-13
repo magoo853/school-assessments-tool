@@ -54,27 +54,15 @@ export default function CleryListPage() {
       <PageHeader
         title="Clery Act ASR Builder"
         subtitle="Annual Security Report builder. An ASR for year Y covers statistics for Y−3 through Y−1."
-        actions={
-          mode === "demo" ? (
-            <Btn onClick={() => setShowNew(true)}>+ New ASR</Btn>
-          ) : undefined
-        }
+        actions={<Btn onClick={() => setShowNew(true)}>+ New ASR</Btn>}
       />
       {mode === "prod" && <ProdNotice />}
 
       {reports.length === 0 ? (
         <EmptyState
           title="No Annual Security Reports yet"
-          body={
-            mode === "prod"
-              ? "Tables are empty in PROD mode — switch to DEMO to work with the builder."
-              : "Create your first ASR to start entering crime statistics and tracking the required policy disclosures."
-          }
-          action={
-            mode === "demo" ? (
-              <Btn onClick={() => setShowNew(true)}>+ New ASR</Btn>
-            ) : undefined
-          }
+          body="Create your first ASR to start entering crime statistics and tracking the required policy disclosures."
+          action={<Btn onClick={() => setShowNew(true)}>+ New ASR</Btn>}
         />
       ) : (
         <div className="grid gap-3">

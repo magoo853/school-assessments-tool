@@ -337,10 +337,17 @@ function FindingsInner() {
       </p>
 
       {filtered.length === 0 ? (
-        <EmptyState
-          title="No findings match"
-          body="Try a different risk level, domain, or search term."
-        />
+        rows.length === 0 ? (
+          <EmptyState
+            title="No findings yet"
+            body="Findings are derived when an assessment is completed — checkpoints answered “no” become findings here, with corrective-action tracking."
+          />
+        ) : (
+          <EmptyState
+            title="No findings match"
+            body="Try a different risk level, domain, or search term."
+          />
+        )
       ) : (
         <>
         {/* Print-only register header: states exactly what this

@@ -273,7 +273,7 @@ function AssessmentsInner() {
           title={mode === "prod" ? "No assessments yet" : statusFilter === "all" ? "No assessments yet" : "Nothing here"}
           body={
             mode === "prod"
-              ? "The live database is not connected, so no assessments are stored here."
+              ? "No assessments stored here yet — create the first one to get started."
               : statusFilter === "all"
                 ? "Start your first walkthrough — pick a template, assign a lead assessor, and go."
                 : `No ${STATUS_FILTERS.find((f) => f.key === statusFilter)?.label.toLowerCase()} assessments.`

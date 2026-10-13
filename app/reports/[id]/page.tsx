@@ -124,19 +124,6 @@ export default function ReportViewPage() {
     setAiInserted(true);
   };
 
-  if (mode === "prod") {
-    return (
-      <div>
-        <PageHeader title="Report" />
-        <ProdNotice />
-        <EmptyState
-          title="No report in prod yet"
-          body="The live database is not connected. Switch to demo mode to view generated reports."
-        />
-      </div>
-    );
-  }
-
   if (!loaded) return null;
 
   if (!doc) {

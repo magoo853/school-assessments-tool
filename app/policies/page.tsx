@@ -93,19 +93,15 @@ export default function PoliciesPage() {
       <PageHeader
         title="Policy Docs library"
         subtitle="Markdown policy documents, grouped by category. Starter templates are seeded in demo mode."
-        actions={mode === "demo" ? <Btn onClick={startNew}>+ New doc</Btn> : undefined}
+        actions={<Btn onClick={startNew}>+ New doc</Btn>}
       />
       {mode === "prod" && <ProdNotice />}
 
       {docs.length === 0 ? (
         <EmptyState
           title="No policy documents yet"
-          body={
-            mode === "prod"
-              ? "Tables are empty in PROD mode — switch to DEMO to browse the starter templates."
-              : "Policy documents (EOP, visitor management, timely warning, and more) will appear here."
-          }
-          action={mode === "demo" ? <Btn onClick={startNew}>+ New doc</Btn> : undefined}
+          body="Policy documents (EOP, visitor management, timely warning, and more) will appear here."
+          action={<Btn onClick={startNew}>+ New doc</Btn>}
         />
       ) : (
         <div className="space-y-4">
