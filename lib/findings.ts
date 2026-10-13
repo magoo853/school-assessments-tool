@@ -61,10 +61,25 @@ export function deriveFindings(assessmentId: string): Finding[] {
   if (!assessment) return [];
   const template = resolveTemplate(assessment.templateId);
 
+  // Snapshot the findings being replaced: corrective-action tracking is
+  // carried over to the re-derived findings by checkpointKey, and the
+  // old finding ids let equipment derivation stay idempotent.
+  const previous = db.findings.filter((f) => f.assessmentId === assessmentId);
+  const caByKey = new Map<string, Partial<Finding>>();
+  const keyByOldFindingId = new Map<string, string>();
+  for (const pf of previous) {
+    keyByOldFindingId.set(pf.id, pf.checkpointKey);
+    const ca: Partial<Finding> = {};
+    if (pf.caStatus) ca.caStatus = pf.caStatus;
+    if (pf.caOwner) ca.caOwner = pf.caOwner;
+    if (pf.caDueDate) ca.caDueDate = pf.caDueDate;
+    if (pf.caVerifiedAt) ca.caVerifiedAt = pf.caVerifiedAt;
+    if (pf.caVerifiedBy) ca.caVerifiedBy = pf.caVerifiedBy;
+    if (Object.keys(ca).length) caByKey.set(pf.checkpointKey, ca);
+  }
+
   // Replace existing findings for this assessment.
-  db.findings
-    .filter((f) => f.assessmentId === assessmentId)
-    .forEach((f) => db.findings.remove(f.id));
+  previous.forEach((f) => db.findings.remove(f.id));
 
   const nos = db.responses.filter(
     (r) => r.assessmentId === assessmentId && r.answer === "no"
@@ -84,34 +99,51 @@ export function deriveFindings(assessmentId: string): Finding[] {
       risk,
       note: r.note || "",
       recommendation,
+      ...(caByKey.get(r.checkpointKey) ?? {}),
     };
     db.findings.upsert(finding);
     findings.push(finding);
   }
 
-  deriveEquipmentMentions(assessmentId, findings);
+  deriveEquipmentMentions(assessmentId, findings, keyByOldFindingId);
   return findings;
 }
 
 /**
  * Simple heuristic: when a finding's gap text or assessor note names
  * equipment, record it in db.equipment linked to the finding.
+ * Idempotent across re-derivation: a mention already recorded for the
+ * same checkpoint (via a previous finding id) is not added again.
  */
 function deriveEquipmentMentions(
   assessmentId: string,
-  findings: Finding[]
+  findings: Finding[],
+  keyByOldFindingId: Map<string, string>
 ): void {
   const existing = db.equipment.filter((e) => e.assessmentId === assessmentId);
+  const coveredByKey = new Map<string, (typeof existing)[number]>();
+  for (const e of existing) {
+    const key = e.findingId ? keyByOldFindingId.get(e.findingId) : undefined;
+    if (key) coveredByKey.set(`${key}|${e.name.toLowerCase()}`, e);
+  }
   for (const f of findings) {
     const hay = `${f.gapText} ${f.note}`.toLowerCase();
     for (const kw of EQUIPMENT_KEYWORDS) {
       if (!hay.includes(kw)) continue;
       const name = equipmentName(kw);
+      const prior = coveredByKey.get(`${f.checkpointKey}|${name.toLowerCase()}`);
       const dup = existing.some(
         (e) =>
           e.findingId === f.id && e.name.toLowerCase() === name.toLowerCase()
       );
-      if (!dup) {
+      if (prior) {
+        // Already recorded for this checkpoint — re-link it to the new
+        // finding id so the chain survives the next re-derivation.
+        if (prior.findingId !== f.id) {
+          db.equipment.upsert({ ...prior, findingId: f.id });
+          prior.findingId = f.id;
+        }
+      } else if (!dup) {
         const item = {
           id: uid("eqp"),
           assessmentId,

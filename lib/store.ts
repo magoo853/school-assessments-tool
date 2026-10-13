@@ -60,6 +60,8 @@ export interface ResponseRow {
   photoIds?: string[];
 }
 
+export type CaStatus = "open" | "in_progress" | "corrected" | "verified";
+
 export interface Finding {
   id: ID;
   assessmentId: ID;
@@ -71,6 +73,13 @@ export interface Finding {
   recommendation: string;
   /** Photo evidence ids → lib/photos.ts (sat_photos table). */
   photoIds?: string[];
+  /** Corrective-action tracking (optional; absent = open). Preserved
+   *  across deriveFindings() re-derivation by checkpointKey. */
+  caStatus?: CaStatus;
+  caOwner?: string;
+  caDueDate?: string; // YYYY-MM-DD
+  caVerifiedAt?: string;
+  caVerifiedBy?: string;
 }
 
 export interface EquipmentItem {

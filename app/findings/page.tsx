@@ -9,15 +9,17 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { db, type Finding, type Risk } from "@/lib/store";
+import { db, type Finding, type Risk, type CaStatus } from "@/lib/store";
 import { getCheckpoint } from "@/lib/templates";
 import { resolveTemplate, allTemplates } from "@/lib/customTemplates";
 import { photosFor } from "@/lib/photos";
+import { getProfile } from "@/lib/profile";
 import { useMode } from "@/lib/mode";
 import {
   Card,
   PageHeader,
   RiskBadge,
+  Badge,
   EmptyState,
   inputCls,
 } from "@/components/ui";
@@ -31,6 +33,32 @@ const RISK_FILTERS: { key: string; label: string }[] = [
 ];
 
 const RISK_SEVERITY: Record<Risk, number> = { high: 0, moderate: 1, low: 2 };
+
+const CA_FILTERS: { key: string; label: string }[] = [
+  { key: "all", label: "All actions" },
+  { key: "open", label: "Open" },
+  { key: "in_progress", label: "In progress" },
+  { key: "corrected", label: "Corrected" },
+  { key: "verified", label: "Verified" },
+  { key: "overdue", label: "⚠ Overdue" },
+];
+
+const CA_LABELS: Record<CaStatus, string> = {
+  open: "Open",
+  in_progress: "In progress",
+  corrected: "Corrected",
+  verified: "Verified",
+};
+
+function caStatusOf(f: Finding): CaStatus {
+  return f.caStatus ?? "open";
+}
+
+function isOverdue(f: Finding): boolean {
+  const s = caStatusOf(f);
+  if (!f.caDueDate || (s !== "open" && s !== "in_progress")) return false;
+  return f.caDueDate < new Date().toISOString().slice(0, 10);
+}
 
 /** Small non-interactive thumbnail strip for list rows. */
 function FindingThumbs({ photoIds }: { photoIds: string[] | undefined }) {
@@ -104,6 +132,13 @@ function FindingsInner() {
   const [domainFilter, setDomainFilter] = useState("all");
   const initialClient = searchParams.get("client");
   const [clientFilter, setClientFilter] = useState(initialClient ?? "all");
+  const initialCa = searchParams.get("ca");
+  const [caFilter, setCaFilter] = useState(
+    initialCa &&
+      ["open", "in_progress", "corrected", "verified", "overdue"].includes(initialCa)
+      ? initialCa
+      : "all"
+  );
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<FindingRow[]>([]);
 
@@ -134,14 +169,38 @@ function FindingsInner() {
       if (riskFilter !== "all" && r.finding.risk !== riskFilter) return false;
       if (clientFilter !== "all" && r.clientName !== clientFilter) return false;
       if (domainFilter !== "all" && r.domainKey !== domainFilter) return false;
+      if (caFilter === "overdue") {
+        if (!isOverdue(r.finding)) return false;
+      } else if (caFilter !== "all") {
+        if (caStatusOf(r.finding) !== caFilter) return false;
+      }
       if (q) {
         const hay =
-          `${r.finding.gapText} ${r.clientName} ${r.domainName} ${r.finding.note}`.toLowerCase();
+          `${r.finding.gapText} ${r.clientName} ${r.domainName} ${r.finding.note} ${r.finding.caOwner ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, riskFilter, clientFilter, domainFilter, query]);
+  }, [rows, riskFilter, clientFilter, domainFilter, caFilter, query]);
+
+  const openCount = rows.filter((r) => {
+    const s = caStatusOf(r.finding);
+    return s === "open" || s === "in_progress";
+  }).length;
+  const overdueCount = rows.filter((r) => isOverdue(r.finding)).length;
+
+  const updateCa = (f: Finding, patch: Partial<Finding>) => {
+    const next: Finding = { ...f, ...patch };
+    if (patch.caStatus === "verified") {
+      next.caVerifiedAt = new Date().toISOString();
+      next.caVerifiedBy = getProfile()?.name ?? "";
+    } else if (patch.caStatus) {
+      next.caVerifiedAt = undefined;
+      next.caVerifiedBy = undefined;
+    }
+    db.findings.upsert(next);
+    setRows(loadRows());
+  };
 
   return (
     <div>
@@ -164,6 +223,23 @@ function FindingsInner() {
                 riskFilter === f.key
                   ? "bg-gradient-to-r from-violet-500 to-indigo-500 text-white shadow-[0_4px_14px_-4px_rgba(124,58,237,0.6)]"
                   : "border border-slate-200 bg-white text-slate-600 hover:border-violet-300 hover:text-violet-700"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {CA_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setCaFilter(f.key)}
+              aria-pressed={caFilter === f.key}
+              className={`flex min-h-[36px] items-center rounded-full px-3 text-xs font-semibold transition-all ${
+                caFilter === f.key
+                  ? "bg-slate-800 text-white"
+                  : "border border-slate-200 bg-white text-slate-500 hover:border-slate-400 hover:text-slate-700"
               }`}
             >
               {f.label}
@@ -210,6 +286,16 @@ function FindingsInner() {
 
       <p className="mb-3 text-sm text-slate-500">
         {filtered.length} finding{filtered.length === 1 ? "" : "s"}
+        {rows.length > 0 && (
+          <>
+            {" "}· {openCount} corrective action{openCount === 1 ? "" : "s"} open
+            {overdueCount > 0 && (
+              <span className="font-semibold text-red-600">
+                {" "}· {overdueCount} overdue
+              </span>
+            )}
+          </>
+        )}
       </p>
 
       {filtered.length === 0 ? (
@@ -220,29 +306,94 @@ function FindingsInner() {
       ) : (
         <Card className="!p-2 md:!p-3">
           <ul className="divide-y divide-slate-100">
-            {filtered.map((r) => (
-              <li key={r.finding.id}>
-                <Link
-                  href={`/assessments/${r.finding.assessmentId}`}
-                  className="flex min-h-[44px] items-start justify-between gap-3 rounded-xl px-2 py-3 transition-colors hover:bg-violet-50/60 md:px-3"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900">
-                      {r.finding.gapText}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {r.clientName}
-                      {r.date ? ` · ${r.date}` : ""}
-                      {` · ${r.domainName}`}
-                    </p>
-                    <FindingThumbs photoIds={r.finding.photoIds} />
+            {filtered.map((r) => {
+              const f = r.finding;
+              const status = caStatusOf(f);
+              const overdue = isOverdue(f);
+              const ctl =
+                "min-h-[38px] rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700";
+              return (
+                <li key={f.id}>
+                  <Link
+                    href={`/assessments/${f.assessmentId}`}
+                    className="flex min-h-[44px] items-start justify-between gap-3 rounded-xl px-2 pt-3 transition-colors hover:bg-violet-50/60 md:px-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-900">
+                        {f.gapText}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {r.clientName}
+                        {r.date ? ` · ${r.date}` : ""}
+                        {` · ${r.domainName}`}
+                      </p>
+                      <FindingThumbs photoIds={f.photoIds} />
+                    </div>
+                    <div className="shrink-0 pt-0.5">
+                      <RiskBadge risk={f.risk} />
+                    </div>
+                  </Link>
+
+                  {/* Corrective-action tracker */}
+                  <div className="flex flex-wrap items-center gap-2 px-2 pb-3 pt-1 md:px-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                      Action
+                    </span>
+                    <select
+                      value={status}
+                      onChange={(e) =>
+                        updateCa(f, { caStatus: e.target.value as CaStatus })
+                      }
+                      aria-label={`Corrective action status for: ${f.gapText}`}
+                      className={ctl}
+                    >
+                      {(Object.keys(CA_LABELS) as CaStatus[]).map((s) => (
+                        <option key={s} value={s}>
+                          {CA_LABELS[s]}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      key={`${f.id}:${f.caOwner ?? ""}`}
+                      defaultValue={f.caOwner ?? ""}
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        if (v !== (f.caOwner ?? ""))
+                          updateCa(f, { caOwner: v || undefined });
+                      }}
+                      placeholder="Owner"
+                      aria-label="Corrective action owner"
+                      className={`${ctl} w-32`}
+                    />
+                    <input
+                      type="date"
+                      value={f.caDueDate ?? ""}
+                      onChange={(e) =>
+                        updateCa(f, { caDueDate: e.target.value || undefined })
+                      }
+                      aria-label="Corrective action due date"
+                      className={ctl}
+                    />
+                    {overdue && <Badge tone="red">⚠ Overdue</Badge>}
+                    {status === "verified" && f.caVerifiedAt && (
+                      <span className="text-xs font-medium text-emerald-700">
+                        ✓ Verified {f.caVerifiedAt.slice(0, 10)}
+                        {f.caVerifiedBy ? ` by ${f.caVerifiedBy}` : ""}
+                      </span>
+                    )}
+                    {status === "corrected" && (
+                      <button
+                        type="button"
+                        onClick={() => updateCa(f, { caStatus: "verified" })}
+                        className="min-h-[38px] rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700"
+                      >
+                        ✓ Verify fix
+                      </button>
+                    )}
                   </div>
-                  <div className="shrink-0 pt-0.5">
-                    <RiskBadge risk={r.finding.risk} />
-                  </div>
-                </Link>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </Card>
       )}
