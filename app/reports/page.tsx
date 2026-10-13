@@ -405,6 +405,12 @@ export default function ReportsPage() {
                     <span className="font-normal text-slate-500">
                       — {a.campus}
                     </span>
+                    {a.review?.state === "approved" && (
+                      <Badge tone="green">✓ Approved</Badge>
+                    )}
+                    {a.review?.state === "pending" && (
+                      <Badge tone="amber">⏳ In review</Badge>
+                    )}
                   </p>
                   <ul className="mt-2 divide-y divide-gray-100 border-l-4 pl-3" style={{ borderColor: c.bar }}>
                     {(Object.keys(REPORT_LABELS) as ReportKind[]).map(

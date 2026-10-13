@@ -737,6 +737,100 @@ function ReviewPanel({
   );
 }
 
+/* Read-only walkthrough answers for a completed assessment — what a
+ * reviewer (or anyone) needs to see the evidence behind the findings
+ * without reopening the assessment for editing. */
+function ReadOnlyAnswers({
+  assessment,
+  template,
+}: {
+  assessment: Assessment;
+  template: AssessmentTemplate;
+}) {
+  const [open, setOpen] = useState(false);
+  const byKey = useMemo(() => {
+    const m = new Map<string, ResponseRow>();
+    db.responses
+      .filter((r) => r.assessmentId === assessment.id)
+      .forEach((r) => m.set(r.checkpointKey, r));
+    return m;
+  }, [assessment.id]);
+  const total = template.domains.reduce((n, d) => n + d.checkpoints.length, 0);
+  const answered = template.domains.reduce(
+    (n, d) =>
+      n + d.checkpoints.filter((c) => byKey.get(c.key)?.answer != null).length,
+    0
+  );
+  const chip = (a: string | null | undefined) =>
+    a === "yes" ? (
+      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">Yes</span>
+    ) : a === "no" ? (
+      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">No</span>
+    ) : a === "na" ? (
+      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">N/A</span>
+    ) : (
+      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-400">No answer</span>
+    );
+
+  return (
+    <Card>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex min-h-[44px] w-full items-center justify-between gap-3 text-left"
+        aria-expanded={open}
+      >
+        <span className="font-semibold text-gray-900">
+          Walkthrough answers{" "}
+          <span className="text-sm font-normal text-gray-500">
+            ({answered}/{total} answered — read-only)
+          </span>
+        </span>
+        <span aria-hidden className="text-violet-500">{open ? "▾" : "▸"}</span>
+      </button>
+      {open && (
+        <div className="mt-3 space-y-5 border-t border-gray-100 pt-4">
+          {template.domains.map((d, i) => (
+            <div key={d.id}>
+              <p className="mb-2 text-sm font-semibold text-gray-700">
+                {i + 1}. {d.name}
+              </p>
+              <ul className="divide-y divide-gray-50">
+                {d.checkpoints.map((c) => {
+                  const r = byKey.get(c.key);
+                  return (
+                    <li key={c.key} className="flex items-start justify-between gap-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-sm text-gray-800">{c.text}</p>
+                        {r?.note && (
+                          <p className="mt-0.5 text-xs italic text-gray-500">
+                            “{r.note}”
+                          </p>
+                        )}
+                        {r?.photoIds && r.photoIds.length > 0 && (
+                          <p className="mt-0.5 text-xs text-gray-400">
+                            📷 {r.photoIds.length} photo{r.photoIds.length === 1 ? "" : "s"} attached
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {r?.answer === "no" && r.risk && (
+                          <RiskBadge risk={r.risk} />
+                        )}
+                        {chip(r?.answer)}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function ReviewStep({
   assessment,
   template,
@@ -839,6 +933,8 @@ function ReviewStep({
           );
         })
       )}
+
+      <ReadOnlyAnswers assessment={assessment} template={template} />
     </div>
   );
 }
