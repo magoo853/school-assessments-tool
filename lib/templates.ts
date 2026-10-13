@@ -1,7 +1,8 @@
 /**
  * Assessment templates for the School Assessments Tool.
  *
- * - isc42: 42-Point ISC-Aligned Walkthrough (DEFAULT) — field instrument
+ * - isc42: ISC-Aligned Walkthrough (DEFAULT; id kept from the original
+ *   42-point instrument — the walkthrough now carries 76 checkpoints) — field instrument
  *   transcribed from the 13-domain field walkthrough checklist.
  * - fl-fssat / la: state-style templates modeled on the Florida FSSAT
  *   and Louisiana school safety evaluations (four domains each).
@@ -723,7 +724,7 @@ const LA_DOMAINS: TemplateDomain[] = [
 export const TEMPLATES: AssessmentTemplate[] = [
   {
     id: "isc42",
-    name: "42-Point ISC-Aligned Walkthrough",
+    name: "ISC-Aligned Walkthrough",
     description:
       "Field walkthrough instrument: 13 domains covering perimeter, parking, building exteriors, entries and visitor management, interior spaces, lighting, cameras and alarms, emergency communications, staffing, plans and drills, IT closets, unoccupied buildings, and stakeholder interviews.",
     domains: ISC42_DOMAINS,
