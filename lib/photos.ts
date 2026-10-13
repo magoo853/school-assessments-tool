@@ -1,9 +1,10 @@
 /**
  * Photo evidence storage.
  *
- * Photos live in their OWN localStorage table (`sat_photos`) as compressed
- * JPEG data URLs — never inline in ResponseRow/Finding, so those rows stay
- * small and export-clean. Rows reference photos via `photoIds: string[]`.
+ * Photos live in their OWN localStorage table (`sat_<mode>_photos`,
+ * mode-scoped like every other table) as compressed JPEG data URLs —
+ * never inline in ResponseRow/Finding, so those rows stay small and
+ * export-clean. Rows reference photos via `photoIds: string[]`.
  *
  * ── Supabase Storage migration point ─────────────────────────────
  * When shared storage lands, swap the table below for Supabase Storage:
@@ -17,7 +18,7 @@
  */
 "use client";
 
-import { nowIso, uid } from "./store";
+import { ensureMigration, modeKey, nowIso, uid } from "./store";
 
 export interface PhotoDoc {
   id: string;
@@ -27,7 +28,9 @@ export interface PhotoDoc {
   createdAt: string;
 }
 
-const KEY = "sat_photos";
+function photosKey(): string {
+  return modeKey("photos");
+}
 const MAX_EDGE = 1280;
 const JPEG_QUALITY = 0.7;
 
@@ -40,9 +43,12 @@ function canStore(): boolean {
 
 function readAll(): PhotoDoc[] {
   if (!canStore()) return [];
+  ensureMigration();
   try {
-    const raw = window.localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as PhotoDoc[]) : [];
+    const raw = window.localStorage.getItem(photosKey());
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as PhotoDoc[]) : [];
   } catch {
     return [];
   }
@@ -50,7 +56,8 @@ function readAll(): PhotoDoc[] {
 
 function writeAll(docs: PhotoDoc[]): void {
   if (!canStore()) return;
-  window.localStorage.setItem(KEY, JSON.stringify(docs));
+  ensureMigration();
+  window.localStorage.setItem(photosKey(), JSON.stringify(docs));
 }
 
 export function getPhoto(id: string): PhotoDoc | undefined {
@@ -67,7 +74,11 @@ export function photosFor(ids: string[] | undefined): PhotoDoc[] {
 }
 
 export function deletePhoto(id: string): void {
-  writeAll(readAll().filter((d) => d.id !== id));
+  try {
+    writeAll(readAll().filter((d) => d.id !== id));
+  } catch {
+    /* a failed delete write leaves the photo in place — never throws */
+  }
 }
 
 /** All stored photo docs (storage-usage / orphan-cleanup callers). */
@@ -81,7 +92,13 @@ export function deletePhotos(ids: string[]): number {
   const drop = new Set(ids);
   const all = readAll();
   const kept = all.filter((d) => !drop.has(d.id));
-  if (kept.length !== all.length) writeAll(kept);
+  if (kept.length !== all.length) {
+    try {
+      writeAll(kept);
+    } catch {
+      return 0;
+    }
+  }
   return all.length - kept.length;
 }
 
@@ -126,6 +143,12 @@ async function compressToDataUrl(file: Blob): Promise<string> {
     throw new Error("Compression failed");
   }
   return dataUrl;
+}
+
+/** Compress an image file to a JPEG data URL (max edge 1280, q0.7) —
+ *  shared by the photo pipeline and assessor-media uploads. */
+export async function compressImageFile(file: Blob): Promise<string> {
+  return compressToDataUrl(file);
 }
 
 export type SaveResult =

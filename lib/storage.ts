@@ -20,11 +20,18 @@
 import { db } from "./store";
 import { listPhotos, deletePhotos, type PhotoDoc } from "./photos";
 
-export const PHOTOS_KEY = "sat_photos";
+/** Photos for the ACTIVE mode live under sat_<mode>_photos. */
 
 /** Typical localStorage quota when the browser won't report one.
  *  Used ONLY as a labeled estimate — never presented as exact. */
 export const FALLBACK_QUOTA_BYTES = 5 * 1024 * 1024;
+
+/** navigator.storage.estimate() reports an ORIGIN-wide quota that can
+ *  be hundreds of MB — localStorage itself still caps out around
+ *  5–10MB. Measuring our bytes against the origin quota made the
+ *  warnings read ~0% on a nearly-full device, so the fraction is
+ *  measured against a localStorage-class cap. */
+export const LOCALSTORAGE_CLASS_CAP = 10 * 1024 * 1024;
 
 export interface KeyUsage {
   key: string;
@@ -70,11 +77,15 @@ export function summarizeUsage(
     const bytes = byteLength(key) + byteLength(value);
     byKey.push({ key, bytes });
     totalBytes += bytes;
-    if (key === PHOTOS_KEY) photosBytes = bytes;
+    if (key.endsWith("_photos")) photosBytes = bytes;
   }
   byKey.sort((a, b) => b.bytes - a.bytes);
-  const quotaIsEstimate = !(quotaBytes && quotaBytes > 0);
-  const quota = quotaIsEstimate ? FALLBACK_QUOTA_BYTES : (quotaBytes as number);
+  const reported = quotaBytes && quotaBytes > 0 ? quotaBytes : null;
+  const quotaIsEstimate = reported === null || reported > LOCALSTORAGE_CLASS_CAP;
+  const quota =
+    reported === null
+      ? FALLBACK_QUOTA_BYTES
+      : Math.min(reported, LOCALSTORAGE_CLASS_CAP);
   return {
     totalBytes,
     byKey,

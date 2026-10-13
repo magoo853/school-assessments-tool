@@ -4,7 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getMode, useMode, onModeChange } from "@/lib/mode";
-import { db, ensureSeed, clearAllData } from "@/lib/store";
+import {
+  db,
+  ensureSeed,
+  getStorageError,
+  STORAGE_ERROR_EVENT,
+} from "@/lib/store";
 import { installSeed } from "@/lib/seed";
 import { useProfile, firstNameOf } from "@/lib/profile";
 import { onSwUpdate, applySwUpdate } from "@/lib/swUpdate";
@@ -146,6 +151,35 @@ function UpdateBanner() {
   );
 }
 
+/** Red banner when a table write failed (device storage full): saves
+ *  are NOT landing, and the user must hear that immediately — the old
+ *  behavior was silent data loss. Clears itself when a write succeeds. */
+function StorageErrorBanner() {
+  const [key, setKey] = useState<string | null>(null);
+  useEffect(() => {
+    const sync = () => setKey(getStorageError());
+    sync();
+    window.addEventListener(STORAGE_ERROR_EVENT, sync);
+    return () => window.removeEventListener(STORAGE_ERROR_EVENT, sync);
+  }, []);
+  if (!key) return null;
+  return (
+    <div
+      role="alert"
+      className="fixed inset-x-3 bottom-3 z-50 mx-auto flex max-w-xl items-center gap-3 rounded-2xl border border-red-400/40 bg-[#2a1215] p-3 shadow-2xl md:left-72 print:hidden"
+    >
+      <span aria-hidden className="text-xl">🛑</span>
+      <p className="flex-1 text-sm font-medium text-white">
+        Device storage is full — new changes may not be saving.
+        <span className="block text-xs font-normal text-red-200">
+          Export a backup (Reports &amp; Exports), then free space in
+          Integrations → Device storage.
+        </span>
+      </p>
+    </div>
+  );
+}
+
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
@@ -179,18 +213,32 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mode, setMode] = useMode();
 
-  // Seed wiring: demo mode installs fictional seed data once; switching to
-  // prod wipes everything; switching back to demo re-seeds.
+  // Mode wiring: each mode has its OWN keyspace, so switching never
+  // wipes anything — demo just needs its seed installed once. Content
+  // remounts on switch (see <main key={mode}>) so no page can render
+  // or write the other mode's rows.
   useEffect(() => {
     if (getMode() === "demo") ensureSeed(installSeed);
     return onModeChange((m) => {
-      if (m === "prod") clearAllData();
-      else ensureSeed(installSeed);
+      if (m === "demo") ensureSeed(installSeed);
     });
+  }, []);
+
+  // A mode switch in ANOTHER tab reloads this one (its chrome and page
+  // state would otherwise describe the old mode's dataset).
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "sat_mode_ls" && e.newValue && e.newValue !== getMode()) {
+        window.location.reload();
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
   return (
     <div className="min-h-screen">
       <UpdateBanner />
+      <StorageErrorBanner />
       {/* Desktop sidebar — dark chrome (hidden in print) */}
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-[#0B1120] md:flex print:hidden">
         <div className="chrome-glow flex h-20 items-center gap-3 border-b border-white/10 px-5">
@@ -303,7 +351,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <ProfileChip />
         </header>
-        <main className="mx-auto max-w-6xl p-4 md:p-6">{children}</main>
+        <main key={mode} className="mx-auto max-w-6xl p-4 md:p-6">{children}</main>
       </div>
     </div>
   );

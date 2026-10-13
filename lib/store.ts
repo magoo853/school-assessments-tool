@@ -13,7 +13,14 @@
  *   but only persist in the browser.
  * - Demo seed data is installed by lib/seed.ts via ensureSeed(). Feature
  *   code must render gracefully when tables are empty (never assume seed).
+ * - Tables are MODE-SCOPED: keys are sat_<mode>_<table>. DEMO and PROD
+ *   are fully separate datasets on the device; switching modes never
+ *   wipes anything. Legacy unprefixed sat_<table> data (pre-keyspace
+ *   builds) is migrated once into the DEMO keyspace — that is what
+ *   existing devices actually hold.
  */
+
+import { getMode, type Mode } from "./mode";
 
 export type ID = string;
 
@@ -244,26 +251,167 @@ function canStore(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
+/** Storage key for a mode-scoped dataset entry: sat_<mode>_<base>. */
+export function modeKey(base: string, mode: Mode = getMode()): string {
+  return `sat_${mode}_${base}`;
+}
+
+export const TABLE_BASES = [
+  "assessments",
+  "responses",
+  "findings",
+  "reports",
+  "equipment",
+  "assessors",
+  "schedules",
+  "clery_reports",
+  "policy_docs",
+  "custom_templates",
+  "fsl_records",
+] as const;
+
+let migrationDone = false;
+/**
+ * One-time migration of legacy unprefixed keys (sat_<table>, sat_photos,
+ * sat_seeded_v1) into the DEMO keyspace. Per-key and idempotent: a key
+ * moves only when its demo counterpart doesn't exist yet, so a partial
+ * (quota-interrupted) run resumes safely on the next access.
+ */
+export function ensureMigration(): void {
+  if (migrationDone || !canStore()) return;
+  migrationDone = true;
+  try {
+    const ls = window.localStorage;
+    for (const base of TABLE_BASES) {
+      const legacy = `sat_${base}`;
+      const target = `sat_demo_${base}`;
+      if (ls.getItem(target) === null && ls.getItem(legacy) !== null) {
+        ls.setItem(target, ls.getItem(legacy) as string);
+        ls.removeItem(legacy);
+      }
+    }
+    if (
+      ls.getItem("sat_demo_photos") === null &&
+      ls.getItem("sat_photos") !== null
+    ) {
+      ls.setItem("sat_demo_photos", ls.getItem("sat_photos") as string);
+      ls.removeItem("sat_photos");
+    }
+    if (
+      ls.getItem("sat_demo_seeded_v1") === null &&
+      ls.getItem("sat_seeded_v1") !== null
+    ) {
+      ls.setItem("sat_demo_seeded_v1", "1");
+      ls.removeItem("sat_seeded_v1");
+    }
+  } catch {
+    /* best-effort: un-migrated keys simply stay where they are */
+  }
+}
+
+/* ── Storage failure signal ─────────────────────────────────────
+ * Table.write() catches quota errors instead of throwing into event
+ * handlers (which made saves look successful, then vanish on reload).
+ * The failure is recorded here and broadcast; Shell renders a banner. */
+export const STORAGE_ERROR_EVENT = "sat:storage-error";
+let storageErrorKey: string | null = null;
+
+export function getStorageError(): string | null {
+  return storageErrorKey;
+}
+
+function signalStorageError(key: string): void {
+  const first = storageErrorKey === null;
+  storageErrorKey = key;
+  if (first && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(STORAGE_ERROR_EVENT));
+  }
+}
+
+function clearStorageError(): void {
+  if (storageErrorKey !== null) {
+    storageErrorKey = null;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(STORAGE_ERROR_EVENT));
+    }
+  }
+}
+
+/** Quarantine a corrupt payload instead of silently overwriting it:
+ *  the original bytes are parked under sat_corrupt_<key> for diagnosis
+ *  (surfaced in Integrations) and the table reads as empty. */
+function quarantine(key: string, raw: string): void {
+  try {
+    const qk = `sat_corrupt_${key}`;
+    if (window.localStorage.getItem(qk) !== raw) {
+      window.localStorage.setItem(qk, raw);
+    }
+  } catch {
+    /* quarantine is best-effort */
+  }
+}
+
+export function getCorruptKeys(): string[] {
+  if (!canStore()) return [];
+  const out: string[] = [];
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const k = window.localStorage.key(i);
+    if (k && k.startsWith("sat_corrupt_")) out.push(k.replace("sat_corrupt_", ""));
+  }
+  return out;
+}
+
 class Table<T extends { id: ID }> {
-  private key: string;
+  private base: string;
+  private cache: T[] | null = null;
+  private cacheKey = "";
   constructor(key: string) {
-    this.key = `sat_${key}`;
+    this.base = key;
+  }
+  private get key(): string {
+    return modeKey(this.base);
   }
   private read(): T[] {
     if (!canStore()) return [];
+    ensureMigration();
+    const k = this.key;
+    if (this.cache && this.cacheKey === k) return this.cache;
+    let rows: T[] = [];
     try {
-      const raw = window.localStorage.getItem(this.key);
-      return raw ? (JSON.parse(raw) as T[]) : [];
+      const raw = window.localStorage.getItem(k);
+      if (raw) {
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed)) rows = parsed as T[];
+        else quarantine(k, raw);
+      }
     } catch {
-      return [];
+      try {
+        const raw = window.localStorage.getItem(k);
+        if (raw) quarantine(k, raw);
+      } catch {
+        /* ignore */
+      }
+      rows = [];
     }
+    this.cache = rows;
+    this.cacheKey = k;
+    return rows;
   }
   private write(rows: T[]): void {
     if (!canStore()) return;
-    window.localStorage.setItem(this.key, JSON.stringify(rows));
+    ensureMigration();
+    const k = this.key;
+    try {
+      window.localStorage.setItem(k, JSON.stringify(rows));
+      clearStorageError();
+    } catch {
+      signalStorageError(k);
+    }
+    this.cache = rows;
+    this.cacheKey = k;
   }
   list(): T[] {
-    return this.read();
+    return [...this.read()];
   }
   get(id: ID): T | undefined {
     return this.read().find((r) => r.id === id);
@@ -272,7 +420,7 @@ class Table<T extends { id: ID }> {
     return this.read().filter(fn);
   }
   upsert(row: T): T {
-    const rows = this.read();
+    const rows = [...this.read()];
     const i = rows.findIndex((r) => r.id === row.id);
     if (i >= 0) rows[i] = row;
     else rows.push(row);
@@ -284,6 +432,12 @@ class Table<T extends { id: ID }> {
   }
   clear(): void {
     this.write([]);
+  }
+  /** Drop the parsed-row cache (call after writing localStorage
+   *  directly, e.g. backup restore, so reads re-parse). */
+  invalidate(): void {
+    this.cache = null;
+    this.cacheKey = "";
   }
 }
 
@@ -302,24 +456,27 @@ export const db = {
   fslRecords: new Table<FslRecord>("fsl_records"),
 };
 
-const SEED_FLAG = "sat_seeded_v1";
-
 /**
  * Install demo seed data once (demo mode only). `seed` writes rows via db.
  * Safe to call on every page load; no-ops after the first run or in SSR.
+ * The flag lives in the current mode's keyspace.
  */
 export function ensureSeed(seed: () => void): void {
   if (!canStore()) return;
-  if (window.localStorage.getItem(SEED_FLAG)) return;
+  ensureMigration();
+  const flag = modeKey("seeded_v1");
+  if (window.localStorage.getItem(flag)) return;
   seed();
-  window.localStorage.setItem(SEED_FLAG, "1");
+  window.localStorage.setItem(flag, "1");
 }
 
-/** Wipe all local data (used when switching modes). */
+/** Wipe the CURRENT mode's tables + its seed flag. Other modes are
+ *  untouched. (Mode switching no longer calls this — each mode keeps
+ *  its own data; it remains for an explicit reset action.) */
 export function clearAllData(): void {
   if (!canStore()) return;
   Object.values(db).forEach((t) => t.clear());
-  window.localStorage.removeItem(SEED_FLAG);
+  window.localStorage.removeItem(modeKey("seeded_v1"));
 }
 
 /** Factory for a fresh assessment (used by schedule start-walkthrough too). */
