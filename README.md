@@ -5,7 +5,7 @@ build: Next.js + Supabase + Vercel, private repo.
 
 ## What's here
 
-- Assessment walkthroughs (42-point ISC-aligned, plus FL/LA templates)
+- Assessment walkthroughs (ISC-aligned, plus FL/LA templates)
 - AI-assisted drafting for findings and reports (editable in-app)
 - AAR, Findings, and Recommendations reports (markdown) with equipment section
 - Assessor directory with clearance tracking

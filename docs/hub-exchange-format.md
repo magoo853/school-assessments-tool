@@ -33,7 +33,7 @@ creates its own `assessment_templates` rows).
 ```jsonc
 {
   "key": "isc42",                          // stable template key
-  "name": "42-Point ISC-Aligned Walkthrough",
+  "name": "ISC-Aligned Walkthrough",
   "stateCode": "ISC",                      // ISC | FL | LA | GEN | CUSTOM (assessor-built templates)
   "version": "1",
   "domains": [
