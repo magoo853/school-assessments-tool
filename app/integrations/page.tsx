@@ -22,6 +22,11 @@ import {
   type UsageSummary,
 } from "@/lib/storage";
 import type { PhotoDoc } from "@/lib/photos";
+import {
+  getEquipmentCleanupPlan,
+  cleanupStaleEquipmentLinks,
+  type EquipmentCleanupPlan,
+} from "@/lib/equipmentCleanup";
 
 interface Health {
   configured: boolean;
@@ -42,11 +47,26 @@ export default function IntegrationsPage() {
   const [orphans, setOrphans] = useState<PhotoDoc[]>([]);
   const [confirmCleanup, setConfirmCleanup] = useState(false);
   const [storageMsg, setStorageMsg] = useState<string | null>(null);
+  const [equipPlan, setEquipPlan] = useState<EquipmentCleanupPlan | null>(null);
+  const [confirmEquipCleanup, setConfirmEquipCleanup] = useState(false);
+  const [equipMsg, setEquipMsg] = useState<string | null>(null);
 
   const loadStorage = async () => {
     setUsage(await getStorageUsage());
     setOrphans(getOrphanedPhotos());
+    setEquipPlan(getEquipmentCleanupPlan());
     setConfirmCleanup(false);
+    setConfirmEquipCleanup(false);
+  };
+
+  const cleanupEquipment = async () => {
+    const applied = cleanupStaleEquipmentLinks();
+    setEquipMsg(
+      applied.staleCount > 0
+        ? `Cleaned up ${applied.staleCount} stale equipment link${applied.staleCount === 1 ? "" : "s"}: removed ${applied.deleteIds.length} duplicate${applied.deleteIds.length === 1 ? "" : "s"}, kept and unlinked ${applied.unlinkIds.length} item${applied.unlinkIds.length === 1 ? "" : "s"}.`
+        : "No stale equipment links to clean up."
+    );
+    await loadStorage();
   };
 
   const cleanupOrphans = async () => {
@@ -391,6 +411,50 @@ export default function IntegrationsPage() {
               <Btn variant="ghost" className="mt-2" onClick={loadStorage}>
                 ↻ Re-check storage
               </Btn>
+            </div>
+
+            <div className="mt-4 rounded-xl bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-800">
+                Stale equipment links
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                {equipPlan === null
+                  ? "Checking…"
+                  : equipPlan.staleCount === 0
+                    ? "None — every equipment item is either unlinked or attached to a live finding."
+                    : `${equipPlan.staleCount} equipment item${equipPlan.staleCount === 1 ? "" : "s"} still point${equipPlan.staleCount === 1 ? "s" : ""} at a finding that no longer exists — leftovers from before equipment tracking was made re-derivation-safe. Cleanup removes only provable duplicates (${equipPlan.deleteIds.length}); every other item is kept and simply unlinked, so it still appears in reports under unlinked equipment. Manually added items are never deleted.`}
+              </p>
+              {equipPlan !== null &&
+                equipPlan.staleCount > 0 &&
+                (confirmEquipCleanup ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-slate-700">
+                      Remove {equipPlan.deleteIds.length} duplicate
+                      {equipPlan.deleteIds.length === 1 ? "" : "s"} and unlink{" "}
+                      {equipPlan.unlinkIds.length} kept item
+                      {equipPlan.unlinkIds.length === 1 ? "" : "s"}? This
+                      can&apos;t be undone.
+                    </span>
+                    <Btn onClick={cleanupEquipment}>Yes, clean up</Btn>
+                    <Btn
+                      variant="ghost"
+                      onClick={() => setConfirmEquipCleanup(false)}
+                    >
+                      Keep them
+                    </Btn>
+                  </div>
+                ) : (
+                  <Btn
+                    className="mt-3"
+                    variant="ghost"
+                    onClick={() => setConfirmEquipCleanup(true)}
+                  >
+                    Clean up stale equipment links
+                  </Btn>
+                ))}
+              {equipMsg && (
+                <p className="mt-2 text-sm text-slate-600">{equipMsg}</p>
+              )}
             </div>
           </>
         )}

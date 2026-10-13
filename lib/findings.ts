@@ -44,6 +44,12 @@ const EQUIPMENT_KEYWORDS = [
   "cctv",
 ];
 
+/** Canonical names an auto-derived equipment mention can carry — the
+ *  single source of truth lib/equipmentCleanup.ts uses to recognise
+ *  derived rows (a manually added item can use any name at all). */
+export const DERIVED_EQUIPMENT_NAMES: string[] =
+  EQUIPMENT_KEYWORDS.map(equipmentName);
+
 function equipmentName(keyword: string): string {
   if (keyword === "pa system") return "PA system";
   if (keyword === "cctv") return "CCTV";
