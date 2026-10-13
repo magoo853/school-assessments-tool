@@ -7,6 +7,7 @@ import { getMode, useMode, onModeChange } from "@/lib/mode";
 import { db, ensureSeed, clearAllData } from "@/lib/store";
 import { installSeed } from "@/lib/seed";
 import { useProfile, firstNameOf } from "@/lib/profile";
+import { onSwUpdate, applySwUpdate } from "@/lib/swUpdate";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: "📊" },
@@ -100,6 +101,50 @@ function OfflineBadge() {
   );
 }
 
+/**
+ * "New version available" banner — appears when a service-worker update
+ * is waiting (see lib/swUpdate). Tapping Update activates the waiting
+ * worker and the page reloads onto the fresh shell; Later dismisses for
+ * this session only (the update is still offered on the next visit).
+ */
+function UpdateBanner() {
+  const [show, setShow] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => onSwUpdate(() => setShow(true)), []);
+  if (!show || dismissed) return null;
+  return (
+    <div
+      role="alert"
+      className="fixed inset-x-3 bottom-3 z-50 mx-auto flex max-w-xl items-center gap-3 rounded-2xl border border-white/15 bg-[#141d33] p-3 shadow-2xl md:left-72 print:hidden"
+    >
+      <span aria-hidden className="text-xl">
+        ✨
+      </span>
+      <p className="flex-1 text-sm font-medium text-white">
+        New version available
+        <span className="block text-xs font-normal text-slate-400">
+          Update now to load the latest app — your data stays on this device.
+        </span>
+      </p>
+      <button
+        type="button"
+        onClick={() => applySwUpdate()}
+        className="flex min-h-[44px] items-center rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 px-4 text-sm font-bold text-white"
+      >
+        Update
+      </button>
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        aria-label="Dismiss update notice"
+        className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
@@ -144,6 +189,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   }, []);
   return (
     <div className="min-h-screen">
+      <UpdateBanner />
       {/* Desktop sidebar — dark chrome (hidden in print) */}
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-[#0B1120] md:flex print:hidden">
         <div className="chrome-glow flex h-20 items-center gap-3 border-b border-white/10 px-5">

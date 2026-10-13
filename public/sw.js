@@ -11,12 +11,23 @@
  * offline; this worker only keeps the app shell loadable without signal.
  */
 
-const CACHE = "sat-shell-v5";
+const CACHE = "sat-shell-v6";
 
 self.addEventListener("install", (event) => {
+  // Deliberately NO skipWaiting() here: a new version parks in the
+  // "waiting" state so the page can prompt "New version available —
+  // tap to update" (lib/swUpdate.ts + Shell banner). First installs
+  // still activate immediately — there is no older worker to wait for.
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(["/", "/manifest.json"])).then(() => self.skipWaiting())
+    caches.open(CACHE).then((cache) => cache.addAll(["/", "/manifest.json"]))
   );
+});
+
+// The page sends this only after the user taps "Update now".
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("activate", (event) => {
