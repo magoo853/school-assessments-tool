@@ -2,10 +2,11 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { db, nowIso, type ReportDoc } from "@/lib/store";
 import { useMode } from "@/lib/mode";
-import { Btn, Card, EmptyState, PageHeader, inputCls } from "@/components/ui";
+import { Btn, Card, EmptyState, Modal, PageHeader, inputCls } from "@/components/ui";
+import { deleteReport } from "@/lib/deleteReport";
 import ProdNotice from "@/components/ProdNotice";
 import { REPORT_LABELS, download, slug, buildShareHtml } from "@/lib/reports";
 import { resolveTemplate } from "@/lib/customTemplates";
@@ -18,6 +19,7 @@ import type { DraftSection } from "@/lib/draft";
 export default function ReportViewPage() {
   const params = useParams();
   const id = params.id as string;
+  const router = useRouter();
   const [mode] = useMode();
   const [doc, setDoc] = useState<ReportDoc | null>(null);
   const [draft, setDraft] = useState("");
@@ -26,6 +28,7 @@ export default function ReportViewPage() {
   const [copied, setCopied] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [aiInserted, setAiInserted] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -226,6 +229,28 @@ export default function ReportViewPage() {
         </div>
       )}
 
+      {/* Danger zone */}
+      <div className="rounded-2xl border border-red-200 bg-red-50/50 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-red-800">
+              Delete this report
+            </p>
+            <p className="mt-0.5 text-xs text-red-600">
+              Removes only this generated report. The assessment and its
+              findings stay — you can regenerate the report any time.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDeleting(true)}
+            className="min-h-[44px] rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 hover:bg-red-100"
+          >
+            🗑 Delete report
+          </button>
+        </div>
+      </div>
+
       {/* Action bar */}
       <div className="sticky bottom-0 -mx-4 border-t border-gray-200 bg-white/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
@@ -267,6 +292,39 @@ export default function ReportViewPage() {
           )}
         </div>
       </div>
+
+      {deleting && (
+        <Modal title="Delete this report?" onClose={() => setDeleting(false)}>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              This permanently deletes{" "}
+              <strong>{doc.title || REPORT_LABELS[doc.kind]}</strong>
+              {dirty
+                ? ", including your unsaved edits,"
+                : ""}{" "}
+              — the generated text only. The source assessment, its
+              responses, findings, and equipment are not touched, and the
+              report can be regenerated from Reports at any time. This
+              cannot be undone.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  deleteReport(doc.id);
+                  router.push("/reports");
+                }}
+                className="min-h-[44px] flex-1 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 sm:flex-none sm:px-8"
+              >
+                Delete permanently
+              </button>
+              <Btn variant="ghost" onClick={() => setDeleting(false)}>
+                Cancel
+              </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
