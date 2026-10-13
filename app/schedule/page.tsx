@@ -20,6 +20,8 @@ import ProdNotice from "@/components/ProdNotice";
 import { AssessorCompact, AssessorUnassigned } from "@/components/AssessorCard";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import { getReassessment } from "@/lib/schedule";
+import { buildVisitIcs, googleCalendarUrl, icsFilename } from "@/lib/calendar";
+import { download } from "@/lib/reports";
 import { latestCompletedFor, copyResponsesForward } from "@/lib/reassess";
 import { deriveFindings } from "@/lib/findings";
 
@@ -264,6 +266,19 @@ function ScheduleRow({
     onChanged();
   };
 
+  const calendarDetails = {
+    templateLabel: templateLabel(item.templateId),
+    assessorName: assessor?.name,
+  };
+
+  const downloadIcs = () => {
+    download(
+      icsFilename(item),
+      buildVisitIcs(item, calendarDetails),
+      "text/calendar;charset=utf-8"
+    );
+  };
+
   const startWalkthrough = () => {
     const assessment = newAssessment({
       clientName: item.clientName,
@@ -338,6 +353,21 @@ function ScheduleRow({
             >
               Open assessment
             </Btn>
+          )}
+          {(item.status === "scheduled" || item.status === "in_progress") && (
+            <>
+              <Btn variant="ghost" onClick={downloadIcs}>
+                📅 Download .ics
+              </Btn>
+              <a
+                href={googleCalendarUrl(item, calendarDetails)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:border-violet-300 hover:bg-violet-50/50 hover:text-violet-700"
+              >
+                Add to Google Calendar
+              </a>
+            </>
           )}
           {advance && (
             <Btn variant="ghost" onClick={advanceStatus}>
