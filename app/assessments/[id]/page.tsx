@@ -35,6 +35,14 @@ import {
   deleteAssessmentCascade,
 } from "@/lib/deleteAssessment";
 import {
+  isReviewLocked,
+  submitForReview,
+  approveReview,
+  sendBack,
+  withdrawReview,
+} from "@/lib/review";
+import { getProfile } from "@/lib/profile";
+import {
   Card,
   PageHeader,
   Btn,
@@ -476,6 +484,259 @@ function FindingAiDraft({
 /* ReviewStep                                                          */
 /* ------------------------------------------------------------------ */
 
+/* ---------------- Peer review / approval ---------------- */
+
+function ReviewPanel({
+  assessment,
+  onChanged,
+}: {
+  assessment: Assessment;
+  onChanged: () => void;
+}) {
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [decideOpen, setDecideOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [reviewerId, setReviewerId] = useState("");
+  const [comment, setComment] = useState("");
+  const [error, setError] = useState("");
+
+  const review = assessment.review;
+  const completed = assessment.status === "completed";
+  if (!completed && !review) return null;
+
+  const assessors = db.assessors.list();
+  const openSubmit = () => {
+    setName(getProfile()?.name ?? "");
+    setReviewerId("");
+    setError("");
+    setSubmitOpen(true);
+  };
+  const openDecide = () => {
+    setName(getProfile()?.name ?? "");
+    setComment("");
+    setError("");
+    setDecideOpen(true);
+  };
+  const doSubmit = () => {
+    const reviewer = assessors.find((x) => x.id === reviewerId);
+    const ok = submitForReview(assessment.id, {
+      byName: name,
+      reviewerId: reviewer?.id,
+      reviewerName: reviewer?.name,
+    });
+    if (!ok) {
+      setError("Your name is required to submit.");
+      return;
+    }
+    setSubmitOpen(false);
+    onChanged();
+  };
+  const doApprove = () => {
+    if (!approveReview(assessment.id, { byName: name, comment })) {
+      setError("Your name is required to approve.");
+      return;
+    }
+    setDecideOpen(false);
+    onChanged();
+  };
+  const doSendBack = () => {
+    if (!comment.trim()) {
+      setError("A comment is required when sending an assessment back — say what needs fixing.");
+      return;
+    }
+    if (!sendBack(assessment.id, { byName: name, comment })) {
+      setError("Your name is required to send back.");
+      return;
+    }
+    setDecideOpen(false);
+    onChanged();
+  };
+
+  return (
+    <>
+      {!review && completed && (
+        <Card className="mb-4 border-violet-200 bg-violet-50/60">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold text-slate-900">Peer review</p>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Get a second pair of eyes on this assessment before the
+                report goes to the client. Submitting locks it against
+                edits until the reviewer decides.
+              </p>
+            </div>
+            <Btn onClick={openSubmit}>Submit for review</Btn>
+          </div>
+        </Card>
+      )}
+
+      {review?.state === "pending" && (
+        <Card className="mb-4 border-violet-300 bg-violet-50">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold text-violet-900">
+                ⏳ In review — locked for editing
+              </p>
+              <p className="mt-0.5 text-sm text-violet-800">
+                Submitted {review.submittedAt.slice(0, 10)} by{" "}
+                {review.submittedBy}
+                {review.reviewerName
+                  ? ` · awaiting ${review.reviewerName}`
+                  : ""}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Btn onClick={openDecide}>Review &amp; decide</Btn>
+              <Btn
+                variant="ghost"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Withdraw this submission? The assessment unlocks and the review record is cleared."
+                    )
+                  ) {
+                    withdrawReview(assessment.id);
+                    onChanged();
+                  }
+                }}
+              >
+                Withdraw
+              </Btn>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {review?.state === "approved" && (
+        <Card className="mb-4 border-emerald-300 bg-emerald-50">
+          <p className="font-semibold text-emerald-900">
+            ✓ Approved by {review.decidedBy} ·{" "}
+            {review.decidedAt?.slice(0, 10)}
+          </p>
+          {review.comment && (
+            <p className="mt-1 text-sm text-emerald-800">
+              “{review.comment}”
+            </p>
+          )}
+          <p className="mt-1 text-xs text-emerald-700">
+            This assessment is locked and its reports carry the approval
+            stamp.
+          </p>
+        </Card>
+      )}
+
+      {review?.state === "sent_back" && (
+        <Card className="mb-4 border-amber-300 bg-amber-50">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold text-amber-900">
+                ↩ Sent back by {review.decidedBy} ·{" "}
+                {review.decidedAt?.slice(0, 10)}
+              </p>
+              {review.comment && (
+                <p className="mt-1 text-sm text-amber-800">
+                  “{review.comment}”
+                </p>
+              )}
+              <p className="mt-1 text-xs text-amber-700">
+                Unlocked — address the feedback, then resubmit.
+              </p>
+            </div>
+            <Btn onClick={openSubmit}>Resubmit for review</Btn>
+          </div>
+        </Card>
+      )}
+
+      {submitOpen && (
+        <Modal title="Submit for review" onClose={() => setSubmitOpen(false)}>
+          <div className="space-y-4">
+            <Field label="Your name">
+              <input
+                className={inputCls}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Who is submitting this?"
+              />
+            </Field>
+            <Field label="Ask a specific reviewer (optional)">
+              <select
+                className={inputCls}
+                value={reviewerId}
+                onChange={(e) => setReviewerId(e.target.value)}
+              >
+                <option value="">Any reviewer</option>
+                {assessors.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex flex-wrap gap-2">
+              <Btn onClick={doSubmit} className="flex-1 sm:flex-none sm:px-8">
+                Submit — lock assessment
+              </Btn>
+              <Btn variant="ghost" onClick={() => setSubmitOpen(false)}>
+                Cancel
+              </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {decideOpen && (
+        <Modal title="Review & decide" onClose={() => setDecideOpen(false)}>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Reviewing <strong>{assessment.clientName}</strong> — submitted
+              by {review?.submittedBy}. Approving stamps your name on the
+              reports; sending back requires a comment and unlocks the
+              assessment for fixes.
+            </p>
+            <Field label="Your name">
+              <input
+                className={inputCls}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Who is deciding?"
+              />
+            </Field>
+            <Field label="Comment">
+              <textarea
+                className={`${inputCls} min-h-[80px]`}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Required to send back; optional on approval."
+              />
+            </Field>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={doApprove}
+                className="min-h-[44px] flex-1 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 sm:flex-none sm:px-6"
+              >
+                ✓ Approve
+              </button>
+              <button
+                type="button"
+                onClick={doSendBack}
+                className="min-h-[44px] flex-1 rounded-lg bg-amber-500 px-4 text-sm font-semibold text-white hover:bg-amber-600 sm:flex-none sm:px-6"
+              >
+                ↩ Send back
+              </button>
+              <Btn variant="ghost" onClick={() => setDecideOpen(false)}>
+                Cancel
+              </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
 function ReviewStep({
   assessment,
   template,
@@ -483,7 +744,7 @@ function ReviewStep({
 }: {
   assessment: Assessment;
   template: AssessmentTemplate;
-  onReopen: () => void;
+  onReopen?: () => void;
 }) {
   const [tick, setTick] = useState(0);
   const findings = useMemo(
@@ -512,9 +773,11 @@ function ReviewStep({
               add equipment per finding below.
             </p>
           </div>
-          <Btn variant="ghost" onClick={onReopen}>
-            Reopen walkthrough
-          </Btn>
+          {onReopen && (
+            <Btn variant="ghost" onClick={onReopen}>
+              Reopen walkthrough
+            </Btn>
+          )}
         </div>
       </Card>
 
@@ -640,6 +903,7 @@ export default function TakerPage() {
   const unanswered = total - answered;
   const pct = total ? Math.round((answered / total) * 100) : 0;
   const completed = assessment.status === "completed";
+  const locked = isReviewLocked(assessment);
 
   const saveResponse = (key: string, patch: Partial<ResponseRow>) => {
     const existing = db.responses
@@ -698,9 +962,11 @@ export default function TakerPage() {
         subtitle={`${assessment.campus} · ${template.name}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Btn variant="ghost" onClick={() => setSwitching(true)}>
-              ⇄ Template
-            </Btn>
+            {!locked && (
+              <Btn variant="ghost" onClick={() => setSwitching(true)}>
+                ⇄ Template
+              </Btn>
+            )}
             {completed && (
               <Btn variant="ghost" onClick={() => setReassessing(true)}>
                 ↻ Reassess
@@ -715,9 +981,14 @@ export default function TakerPage() {
         }
       />
       {mode === "prod" && <ProdNotice />}
+      <ReviewPanel assessment={assessment} onChanged={() => setTick((t) => t + 1)} />
 
       {completed ? (
-        <ReviewStep assessment={assessment} template={template} onReopen={reopen} />
+        <ReviewStep
+          assessment={assessment}
+          template={template}
+          onReopen={locked ? undefined : reopen}
+        />
       ) : (
         <>
           {/* Cover strip */}
@@ -835,6 +1106,7 @@ export default function TakerPage() {
       )}
 
       {/* Danger zone */}
+      {!locked && (
       <div className="mt-8 rounded-2xl border border-red-200 bg-red-50/50 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -855,6 +1127,7 @@ export default function TakerPage() {
           </button>
         </div>
       </div>
+      )}
 
       {deleting && (
         <Modal title="Delete this assessment?" onClose={() => setDeleting(false)}>
