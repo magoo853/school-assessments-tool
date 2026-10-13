@@ -93,7 +93,6 @@ export default function ReportsPage() {
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
 
   const assessments = useMemo<Assessment[]>(() => {
-    if (mode === "prod") return [];
     return [...db.assessments.list()].sort((a, b) =>
       b.createdAt.localeCompare(a.createdAt)
     );
@@ -208,25 +207,13 @@ export default function ReportsPage() {
     csv: string
   ) => download(filename, csv, "text/csv;charset=utf-8");
 
-  if (mode === "prod") {
-    return (
-      <div>
-        <PageHeader title="Reports & Exports" />
-        <ProdNotice />
-        <EmptyState
-          title="No reports in prod yet"
-          body="The live database is not connected. Switch to demo mode to generate reports from sample data."
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Reports & Exports"
         subtitle="Generate editable reports from completed walkthroughs, or export raw data as CSV."
       />
+      {mode === "prod" && <ProdNotice />}
 
       {/* Step 1 — pick assessments (each school has its own color) */}
       {assessments.length === 0 ? (
@@ -637,10 +624,12 @@ export default function ReportsPage() {
       <Card>
         <h2 className="font-semibold">Backup & Restore</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Everything on this device — assessments, reports, photos, schedules,
-          templates, and your profile — in one file. Download it to move to a
-          new phone or keep a safety copy. Your AI key is never included in a
-          backup.
+          The current mode's ({mode.toUpperCase()}) dataset on this device —
+          assessments, reports, photos, schedules, templates — plus your
+          profile and branding, in one file. Download it to move to a new
+          phone or keep a safety copy. Restoring a backup replaces only
+          that mode's data; the other mode is untouched. Your AI key is
+          never included in a backup.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Btn
@@ -676,15 +665,26 @@ export default function ReportsPage() {
                   const when = summary.exportedAt
                     ? new Date(summary.exportedAt).toLocaleString()
                     : "unknown date";
+                  const modeNote =
+                    summary.mode !== mode
+                      ? ` Heads up: this is a ${summary.mode.toUpperCase()} backup — it will restore into the ${summary.mode.toUpperCase()} dataset (you're viewing ${mode.toUpperCase()}), leaving your current view unchanged.`
+                      : "";
                   if (
                     !window.confirm(
-                      `Restore the backup from ${when} (${summary.entries} data entries)? This REPLACES everything currently on this device.`
+                      `Restore the ${summary.mode.toUpperCase()} backup from ${when} (${summary.entries} data entries)? This REPLACES the current ${summary.mode.toUpperCase()} data on this device.${modeNote}`
                     )
                   ) {
                     return;
                   }
-                  restoreBackup(parsed as BackupFile);
-                  window.location.reload();
+                  const result = restoreBackup(parsed as BackupFile);
+                  if (result.skipped.length > 0) {
+                    setBackupMsg(
+                      `Restored ${result.restored} entries into ${result.mode.toUpperCase()}; ${result.skipped.length} invalid entr${result.skipped.length === 1 ? "y was" : "ies were"} skipped. Reloading…`
+                    );
+                    setTimeout(() => window.location.reload(), 1200);
+                  } else {
+                    window.location.reload();
+                  }
                 } catch {
                   setBackupMsg("Couldn't read that file — is it a backup .json?");
                 }

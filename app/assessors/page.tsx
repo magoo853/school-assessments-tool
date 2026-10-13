@@ -431,20 +431,9 @@ export default function AssessorsPage() {
     refresh();
   };
 
-  if (mode === "prod") {
-    return (
-      <div className="mx-auto max-w-5xl px-4 py-6">
-        <ProdNotice />
-        <EmptyState
-          title="No assessors"
-          body="The directory is empty until a live database is connected."
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
+      {mode === "prod" && <ProdNotice />}
       <PageHeader
         title="Assessors"
         subtitle="Who's coming to campus. Verify each assessor's photo and background clearance before the visit."

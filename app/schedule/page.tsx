@@ -557,21 +557,9 @@ function ScheduleInner() {
     refresh();
   };
 
-  if (mode === "prod") {
-    return (
-      <div>
-        <ProdNotice />
-        <PageHeader title="Schedule" subtitle="Dispatch board for assessment visits." />
-        <EmptyState
-          title="Nothing scheduled"
-          body="The live database is not connected yet, so the schedule is empty."
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
+      {mode === "prod" && <ProdNotice />}
       <PageHeader
         title="Schedule"
         subtitle="Dispatch board for upcoming and past assessment visits."
