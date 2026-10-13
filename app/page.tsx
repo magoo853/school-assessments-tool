@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { db } from "@/lib/store";
-import type { Finding, ScheduleItem } from "@/lib/store";
+import type { Assessment, Finding, ScheduleItem } from "@/lib/store";
+import { pendingReviews } from "@/lib/review";
 import { useMode, onModeChange } from "@/lib/mode";
 import { useProfile, firstNameOf } from "@/lib/profile";
 import {
@@ -123,6 +124,7 @@ interface OverdueRow {
 interface Snapshot {
   stats: ReturnType<typeof getDashboardStats>;
   upcoming: UpcomingRow[];
+  pendingReview: Assessment[];
   reassess: ReassessInfo[];
   topFindings: Finding[];
   ca: CaSummary;
@@ -137,6 +139,7 @@ interface Snapshot {
 
 function loadSnapshot(): Snapshot {
   const stats = getDashboardStats();
+  const pendingReview = pendingReviews();
   const upcoming = db.schedules
     .filter((s) => s.status === "scheduled" || s.status === "in_progress")
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -182,6 +185,7 @@ function loadSnapshot(): Snapshot {
   return {
     stats,
     upcoming,
+    pendingReview,
     reassess,
     topFindings,
     ca,
@@ -299,6 +303,46 @@ export default function DashboardPage() {
       )}
 
       {showOnboarding && <OnboardingCard onDismiss={dismissOnboarding} />}
+
+      {snap && snap.pendingReview.length > 0 && (
+        <Card className="border-violet-300 bg-violet-50">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="font-semibold text-violet-900">
+              ⏳ Awaiting review ({snap.pendingReview.length})
+            </p>
+            <span className="text-xs text-violet-600">
+              Submitted assessments waiting on a decision
+            </span>
+          </div>
+          <ul className="divide-y divide-violet-100">
+            {snap.pendingReview.map((a) => (
+              <li key={a.id}>
+                <Link
+                  href={`/assessments/${a.id}`}
+                  className="group flex min-h-[44px] items-center justify-between gap-3 py-1.5"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-slate-800 group-hover:text-violet-800">
+                      {a.clientName}
+                      {a.campus ? ` — ${a.campus}` : ""}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      Submitted {a.review?.submittedAt.slice(0, 10)} by{" "}
+                      {a.review?.submittedBy}
+                      {a.review?.reviewerName
+                        ? ` · awaiting ${a.review.reviewerName}`
+                        : ""}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold text-violet-700">
+                    Review →
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {/* Stat cards — every number drills down */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

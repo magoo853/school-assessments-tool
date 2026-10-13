@@ -306,6 +306,15 @@ function AssessmentsInner() {
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Badge tone="blue">{templateName(a.templateId)}</Badge>
+                    {a.review?.state === "pending" && (
+                      <Badge tone="amber">⏳ In review</Badge>
+                    )}
+                    {a.review?.state === "approved" && (
+                      <Badge tone="green">✓ Approved</Badge>
+                    )}
+                    {a.review?.state === "sent_back" && (
+                      <Badge tone="red">↩ Sent back</Badge>
+                    )}
                     <button
                       type="button"
                       onClick={() => setSwitchTarget(a)}

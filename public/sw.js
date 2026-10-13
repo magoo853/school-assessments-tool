@@ -11,7 +11,7 @@
  * offline; this worker only keeps the app shell loadable without signal.
  */
 
-const CACHE = "sat-shell-v13";
+const CACHE = "sat-shell-v14";
 
 self.addEventListener("install", (event) => {
   // Deliberately NO skipWaiting() here: a new version parks in the

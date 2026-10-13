@@ -655,7 +655,7 @@ export function buildShareHtml(input: ShareHtmlInput): string {
     <p><strong>${client}</strong> — ${campus}</p>
     <p>Assessment date: ${date} · Report date: ${reportDateStr}</p>
     <p>Template: ${templateName}</p>
-    <p class="prepared">Prepared by ${company ? `${company} · ` : ""}${names}</p>
+    <p class="prepared">Prepared by ${company ? `${company} · ` : ""}${names}${a.review?.state === "approved" ? ` · ✓ Reviewed &amp; approved by ${escAttr(a.review.decidedBy ?? "reviewer")} · ${escAttr((a.review.decidedAt ?? "").slice(0, 10))}` : ""}</p>
   </div>
   <div class="content">
     ${body}

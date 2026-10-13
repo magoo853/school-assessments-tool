@@ -142,6 +142,8 @@ export default function ReportPrintPage() {
             ? `${branding.companyName.trim()} · `
             : ""}
           {assessorNames} · Report date {doc.updatedAt.slice(0, 10)}
+          {assessment?.review?.state === "approved" &&
+            ` · ✓ Reviewed & approved by ${assessment.review.decidedBy ?? "reviewer"} · ${assessment.review.decidedAt?.slice(0, 10) ?? ""}`}
         </p>
       </div>
 

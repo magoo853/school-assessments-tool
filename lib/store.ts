@@ -32,6 +32,25 @@ export type Risk = "low" | "moderate" | "high";
 export type AssessmentStatus = "draft" | "in_progress" | "completed";
 export type ScheduleStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
 
+export type ReviewState = "pending" | "approved" | "sent_back";
+
+/** Peer-review / approval record on an assessment (optional; absent =
+ *  never submitted for review). Workflow transitions live in
+ *  lib/review.ts. Names are snapshots — there are no accounts yet, so
+ *  this is an honest workflow record, not an enforced permission. */
+export interface ReviewRecord {
+  state: ReviewState;
+  submittedBy: string;
+  submittedAt: string;
+  /** Assessor asked to review (optional; any reviewer may decide). */
+  reviewerId?: string;
+  reviewerName?: string;
+  decidedBy?: string;
+  decidedAt?: string;
+  /** Decision comment — required when sent back. */
+  comment?: string;
+}
+
 export interface Assessment {
   id: ID;
   clientName: string;
@@ -45,6 +64,7 @@ export interface Assessment {
   createdAt: string;
   completedAt?: string;
   cover: { date: string; assessors: string; escort: string; weather: string };
+  review?: ReviewRecord;
 }
 
 export interface ResponseRow {
