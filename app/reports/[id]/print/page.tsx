@@ -80,7 +80,12 @@ export default function ReportPrintPage() {
   const assessorNames = assessment
     ? [
         ...db.assessors
-          .filter((x) => assessment.assessorIds.includes(x.id))
+          .filter((x) =>
+            new Set([
+              ...assessment.assessorIds,
+              ...(assessment.leadAssessorId ? [assessment.leadAssessorId] : []),
+            ]).has(x.id)
+          )
           .map((x) => x.name),
         ...(assessment.cover?.assessors?.split(/[,;]/).map((s) => s.trim()) ?? []),
       ]

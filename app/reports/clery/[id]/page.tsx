@@ -171,6 +171,7 @@ export default function CleryEditorPage() {
   const router = useRouter();
   const [mode] = useMode();
   const [report, setReport] = useState<CleryReport | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [year, setYear] = useState<number | null>(null);
   const [pendingZero, setPendingZero] = useState<{ rowId: string; label: string } | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -179,8 +180,13 @@ export default function CleryEditorPage() {
 
   useEffect(() => {
     const r = db.cleryReports.get(params.id);
-    setReport(r ?? null);
+    // Normalize on load: a report restored from an older backup may be
+    // missing its stats array — default it instead of crashing the editor.
+    setReport(
+      r ? { ...r, stats: Array.isArray(r.stats) ? r.stats : [] } : null
+    );
     if (r) setYear(statsWindow(r.reportYear)[2]);
+    setLoaded(true);
   }, [params.id]);
 
   const rowIndex = useMemo(() => {
@@ -287,6 +293,16 @@ export default function CleryEditorPage() {
       setCopied(false);
     }
   };
+
+  if (!loaded) {
+    // First paint before the device read lands — don't flash
+    // "ASR not found" for a report that exists.
+    return (
+      <div className="mx-auto max-w-5xl p-4 md:p-6">
+        <p className="text-sm text-slate-500">Loading…</p>
+      </div>
+    );
+  }
 
   if (!report) {
     return (

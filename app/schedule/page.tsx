@@ -24,15 +24,19 @@ import { buildVisitIcs, googleCalendarUrl, icsFilename } from "@/lib/calendar";
 import { download } from "@/lib/reports";
 import { latestCompletedFor, copyResponsesForward } from "@/lib/reassess";
 import { deriveFindings } from "@/lib/findings";
+import { allTemplates, resolveTemplate } from "@/lib/customTemplates";
 
-const TEMPLATES = [
-  { id: "isc42", label: "ISC-Aligned Walkthrough" },
-  { id: "fl-fssat", label: "Florida School Safety Assessment Tool (FSSAT)" },
-  { id: "la", label: "Louisiana 116-Question Template" },
-];
+/** Built-ins + the device's custom templates — a visit scheduled
+ *  against a custom template must be selectable here too. */
+function templateOptions(): { id: string; label: string }[] {
+  return allTemplates().map(({ template }) => ({
+    id: template.id,
+    label: template.name,
+  }));
+}
 
 function templateLabel(id: string): string {
-  return TEMPLATES.find((t) => t.id === id)?.label ?? id;
+  return resolveTemplate(id).name ?? id;
 }
 
 /** Prominent section heading — gradient accent bar + count chip, so the
@@ -183,7 +187,7 @@ function ScheduleForm({
             value={templateId}
             onChange={(e) => setTemplateId(e.target.value)}
           >
-            {TEMPLATES.map((t) => (
+            {templateOptions().map((t) => (
               <option key={t.id} value={t.id}>
                 {t.label}
               </option>

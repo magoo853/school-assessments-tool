@@ -29,6 +29,7 @@ export default function ReportViewPage() {
   const [loaded, setLoaded] = useState(false);
   const [aiInserted, setAiInserted] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -62,7 +63,15 @@ export default function ReportViewPage() {
     if (!doc) return;
     const aid = doc.assessmentId;
     const a = db.assessments.get(aid);
-    if (!a) return;
+    if (!a) {
+      // Orphaned report (its assessment was deleted): say so instead of
+      // the old silent no-op that looked like a dead button.
+      setShareMsg(
+        "This report's assessment no longer exists on this device, so a share file can't be built. You can still copy or download the report text."
+      );
+      return;
+    }
+    setShareMsg(null);
     const html = buildShareHtml({
       report: { ...doc, markdown: draft },
       assessment: a,
@@ -90,7 +99,7 @@ export default function ReportViewPage() {
         ? {
             client: a.clientName,
             campus: a.campus,
-            date: a.cover.date,
+            date: a.cover?.date ?? "",
             template: a.templateId,
           }
         : {},
@@ -278,6 +287,11 @@ export default function ReportViewPage() {
             </span>
           )}
         </div>
+        {shareMsg && (
+          <p className="text-sm font-medium text-red-600" role="alert">
+            {shareMsg}
+          </p>
+        )}
       </div>
 
       {deleting && (
