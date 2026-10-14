@@ -20,6 +20,9 @@ import { caStatusOf, isCaOverdue } from "@/lib/ca";
 import { caPrintLine, exportCounts } from "@/lib/findingsExport";
 import { getCheckpoint } from "@/lib/templates";
 import { resolveTemplate } from "@/lib/customTemplates";
+import { photosFor } from "@/lib/photos";
+import { splitByTiming } from "@/lib/photoEvidence";
+import { PostBadge } from "@/components/PhotoEvidence";
 import { useMode } from "@/lib/mode";
 import { Btn, RiskBadge } from "@/components/ui";
 
@@ -27,6 +30,7 @@ interface FindingRow {
   finding: Finding;
   clientName: string;
   date: string;
+  completedAt?: string;
   domainName: string;
   domainKey: string;
   templateName: string;
@@ -45,6 +49,7 @@ function loadRows(): FindingRow[] {
         finding: f,
         clientName: a?.clientName ?? "—",
         date: (a?.completedAt ?? a?.createdAt ?? "").slice(0, 10),
+        completedAt: a?.completedAt,
         domainName: hit?.domain.name ?? "—",
         domainKey: hit ? `${template.id}:${hit.domain.id}` : "",
         templateName: template.name,
@@ -141,6 +146,52 @@ function PrintInner() {
               <p className="mt-0.5 text-xs text-slate-600">
                 {caPrintLine(r.finding)}
               </p>
+              {/* Photo evidence (photo standard, 2026-10-14): the
+                  register print carries the finding's photos too —
+                  during-assessment first, post-assessment badged.
+                  Capped at 4 per row; the report Photo Log holds the
+                  complete record. */}
+              {(() => {
+                const photos = photosFor(r.finding.photoIds);
+                if (!photos.length) return null;
+                const { during, post } = splitByTiming(
+                  { completedAt: r.completedAt },
+                  photos
+                );
+                const ordered = [
+                  ...during.map((p) => ({ p, post: false })),
+                  ...post.map((p) => ({ p, post: true })),
+                ];
+                const shown = ordered.slice(0, 4);
+                return (
+                  <div className="mt-1.5">
+                    <div className="flex flex-wrap gap-1.5">
+                      {shown.map(({ p, post: isPost }) => (
+                        <span key={p.id} className="relative inline-block">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={p.dataUrl}
+                            alt={r.finding.gapText}
+                            className="h-20 w-28 rounded-lg border border-slate-200 object-cover"
+                          />
+                          {isPost && (
+                            <span className="absolute left-1 top-1">
+                              <PostBadge photo={p} />
+                            </span>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      📷 {photos.length} photo{photos.length === 1 ? "" : "s"}
+                      {post.length > 0 &&
+                        ` · ${post.length} post-assessment`}
+                      {ordered.length > shown.length &&
+                        ` · full set in the report Photo Log`}
+                    </p>
+                  </div>
+                );
+              })()}
             </li>
           ))}
         </ul>
