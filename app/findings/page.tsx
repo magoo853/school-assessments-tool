@@ -12,6 +12,11 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { db, type Finding, type Risk, type CaStatus } from "@/lib/store";
 import { caStatusOf, isCaOverdue } from "@/lib/ca";
+import {
+  isBulkAssignable,
+  normalizeBulkPatch,
+  planBulkAssign,
+} from "@/lib/bulkCa";
 import { download } from "@/lib/reports";
 import {
   buildFindingsCsv,
@@ -169,6 +174,9 @@ function FindingsInner() {
   const initialQuery = searchParams.get("q");
   const [query, setQuery] = useState(initialQuery ?? "");
   const [rows, setRows] = useState<FindingRow[]>([]);
+  const [bulkOwner, setBulkOwner] = useState("");
+  const [bulkDue, setBulkDue] = useState("");
+  const [bulkMsg, setBulkMsg] = useState("");
 
   useEffect(() => {
     setRows(loadRows());
@@ -228,6 +236,36 @@ function FindingsInner() {
     }
     db.findings.upsert(next);
     setRows(loadRows());
+  };
+
+  // Bulk assign: applies to the currently visible (filtered) set, but
+  // only to actionable findings — corrected/verified are never touched.
+  const bulkEligible = filtered.filter((r) => isBulkAssignable(r.finding));
+  const bulkPatch = normalizeBulkPatch({
+    owner: bulkOwner,
+    dueDate: bulkDue,
+  });
+  const applyBulkAssign = () => {
+    const plan = planBulkAssign(
+      filtered.map((r) => r.finding),
+      { owner: bulkOwner, dueDate: bulkDue }
+    );
+    if (!plan.patch || plan.updated.length === 0) return;
+    plan.updated.forEach((f) => db.findings.upsert(f));
+    setRows(loadRows());
+    setBulkOwner("");
+    setBulkDue("");
+    setBulkMsg(
+      `Assigned ${plan.updated.length} visible open finding${
+        plan.updated.length === 1 ? "" : "s"
+      }${plan.patch.owner ? ` to ${plan.patch.owner}` : ""}${
+        plan.patch.dueDate ? ` · due ${plan.patch.dueDate}` : ""
+      }${
+        plan.skippedFinished > 0
+          ? ` · ${plan.skippedFinished} corrected/verified left unchanged`
+          : ""
+      }.`
+    );
   };
 
   const printCounts = exportCounts(filtered);
@@ -372,6 +410,59 @@ function FindingsInner() {
           </>
         )}
       </p>
+
+      {/* Bulk corrective-action assign: one owner / due date for every
+          visible actionable finding at once. Screen-only. */}
+      {filtered.length > 0 && (
+        <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-3 print:hidden md:p-4">
+          <p className="text-sm font-semibold text-slate-800">
+            Bulk assign corrective actions
+          </p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Applies to the {bulkEligible.length} visible open / in-progress
+            finding{bulkEligible.length === 1 ? "" : "s"} below (current
+            filters). Corrected and verified findings are never changed,
+            and blank fields are left as-is.
+          </p>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={bulkOwner}
+              onChange={(e) => {
+                setBulkOwner(e.target.value);
+                setBulkMsg("");
+              }}
+              placeholder="Owner for all visible"
+              aria-label="Bulk corrective action owner"
+              className="min-h-[44px] w-52 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+            />
+            <input
+              type="date"
+              value={bulkDue}
+              onChange={(e) => {
+                setBulkDue(e.target.value);
+                setBulkMsg("");
+              }}
+              aria-label="Bulk corrective action due date"
+              className="min-h-[44px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+            />
+            <button
+              type="button"
+              disabled={!bulkPatch || bulkEligible.length === 0}
+              onClick={applyBulkAssign}
+              className="min-h-[44px] rounded-xl bg-slate-800 px-4 text-sm font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Assign to {bulkEligible.length} finding
+              {bulkEligible.length === 1 ? "" : "s"}
+            </button>
+          </div>
+          {bulkMsg && (
+            <p className="mt-2 text-sm font-medium text-emerald-700" role="status">
+              ✓ {bulkMsg}
+            </p>
+          )}
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         rows.length === 0 ? (
