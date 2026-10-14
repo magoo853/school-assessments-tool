@@ -8,10 +8,12 @@ import { useMode } from "@/lib/mode";
 import { Btn, Card, EmptyState, Modal, PageHeader, inputCls } from "@/components/ui";
 import { deleteReport } from "@/lib/deleteReport";
 import ProdNotice from "@/components/ProdNotice";
-import { REPORT_LABELS, download, slug, buildShareHtml } from "@/lib/reports";
+import { REPORT_LABELS, download, slug, buildShareHtml, buildCheckpointIndex } from "@/lib/reports";
 import { resolveTemplate } from "@/lib/customTemplates";
 import { renderMarkdown } from "@/components/MarkdownView";
-import { photosFor } from "@/lib/photos";
+import { listPhotos } from "@/lib/photos";
+import { buildPhotoLog } from "@/lib/photoEvidence";
+import { FindingEvidenceBlock, PhotoLog } from "@/components/PhotoEvidence";
 import AiDraftButton, { AiDraftBadge } from "@/components/AiDraftButton";
 import type { DraftSection } from "@/lib/draft";
 
@@ -78,6 +80,7 @@ export default function ReportViewPage() {
       report: { ...doc, markdown: draft },
       assessment: a,
       findings: db.findings.filter((f) => f.assessmentId === aid),
+      responses: db.responses.filter((r) => r.assessmentId === aid),
       equipment: db.equipment.filter((e) => e.assessmentId === aid),
       template: resolveTemplate(a.templateId),
     });
@@ -194,46 +197,59 @@ export default function ReportViewPage() {
       {tab === "preview" ? (
         <>
           <Card className="prose-none">{renderMarkdown(draft)}</Card>
-          {/* Photo evidence appendix — the print view and shared HTML
-              include it, so the preview must too (audit #2 found the
-              preview silently omitting photos). */}
+          {/* Photo evidence at each finding + closing Photo Log —
+              the print view and shared HTML carry the same blocks,
+              so the preview must too (photo standard, 2026-10-14;
+              audit #2 found the preview silently omitting photos). */}
           {(() => {
             if (!doc || doc.assessmentId.startsWith("group:")) return null;
-            const withPhotos = db.findings
-              .filter(
-                (f) =>
-                  f.assessmentId === doc.assessmentId &&
-                  (f.photoIds?.length ?? 0) > 0
-              )
-              .map((f) => ({ f, photos: photosFor(f.photoIds) }))
-              .filter((x) => x.photos.length > 0);
-            if (!withPhotos.length) return null;
+            const a = db.assessments.get(doc.assessmentId);
+            if (!a) return null;
+            const rank: Record<string, number> = { high: 0, moderate: 1, low: 2 };
+            const findings = db.findings
+              .filter((f) => f.assessmentId === doc.assessmentId)
+              .sort((x, y) => (rank[x.risk] ?? 3) - (rank[y.risk] ?? 3));
+            const withPhotos = findings.filter(
+              (f) => (f.photoIds?.length ?? 0) > 0
+            );
+            const log = buildPhotoLog({
+              assessment: a,
+              findings,
+              responses: db.responses.filter(
+                (r) => r.assessmentId === doc.assessmentId
+              ),
+              photosById: new Map(listPhotos().map((p) => [p.id, p])),
+              checkpointIdx: buildCheckpointIndex(resolveTemplate(a.templateId)),
+            });
+            if (!withPhotos.length && !log.length) return null;
             return (
-              <Card className="mt-4">
-                <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
-                  Photo evidence
-                </h3>
-                <div className="mt-3 space-y-5">
-                  {withPhotos.map(({ f, photos }) => (
-                    <div key={f.id}>
-                      <p className="text-sm font-medium text-slate-800">
-                        {f.gapText}
-                      </p>
-                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        {photos.map((p) => (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            key={p.id}
-                            src={p.dataUrl}
-                            alt={f.gapText}
-                            className="aspect-[4/3] w-full rounded-lg object-cover"
-                          />
-                        ))}
-                      </div>
+              <>
+                {withPhotos.length > 0 && (
+                  <Card className="mt-4">
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                      Photo evidence
+                    </h3>
+                    <div className="mt-3 space-y-5">
+                      {findings.map((f, i) => (
+                        <FindingEvidenceBlock
+                          key={f.id}
+                          assessment={a}
+                          finding={f}
+                          index={i}
+                        />
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </Card>
+                  </Card>
+                )}
+                {log.length > 0 && (
+                  <Card className="mt-4">
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                      Photo log
+                    </h3>
+                    <PhotoLog entries={log} />
+                  </Card>
+                )}
+              </>
             );
           })()}
         </>

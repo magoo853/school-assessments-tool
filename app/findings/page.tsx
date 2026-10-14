@@ -22,6 +22,7 @@ import {
 import { getCheckpoint } from "@/lib/templates";
 import { resolveTemplate, allTemplates } from "@/lib/customTemplates";
 import { photosFor } from "@/lib/photos";
+import { isPostAssessmentPhoto } from "@/lib/photoEvidence";
 import { getProfile } from "@/lib/profile";
 import { useMode } from "@/lib/mode";
 import {
@@ -63,22 +64,43 @@ function isOverdue(f: Finding): boolean {
   return isCaOverdue(f);
 }
 
-/** Small non-interactive thumbnail strip for list rows. */
-function FindingThumbs({ photoIds }: { photoIds: string[] | undefined }) {
-  const photos = photosFor(photoIds).slice(0, 4);
+/** Small non-interactive thumbnail strip for list rows. When any of
+ *  the finding's photos was added after the assessment closed, the
+ *  strip says so — post-assessment evidence is never silently mixed
+ *  (photo standard, 2026-10-14). */
+function FindingThumbs({
+  photoIds,
+  completedAt,
+}: {
+  photoIds: string[] | undefined;
+  completedAt?: string;
+}) {
+  const all = photosFor(photoIds);
+  const photos = all.slice(0, 4);
   if (!photos.length) return null;
+  const hasPost = all.some((p) =>
+    isPostAssessmentPhoto({ completedAt }, p)
+  );
   return (
-    <div className="mt-2 flex gap-1.5" aria-label={`${photos.length} photos`}>
-      {photos.map((p) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={p.id}
-          src={p.dataUrl}
-          alt="Evidence photo"
-          className="h-10 w-10 rounded-lg border border-slate-200 object-cover"
-          loading="lazy"
-        />
-      ))}
+    <div>
+      <div className="mt-2 flex gap-1.5" aria-label={`${photos.length} photos`}>
+        {photos.map((p) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={p.id}
+            src={p.dataUrl}
+            alt="Evidence photo"
+            className="h-10 w-10 rounded-lg border border-slate-200 object-cover"
+            loading="lazy"
+          />
+        ))}
+      </div>
+      {hasPost && (
+        <p className="mt-1 text-[11px] font-semibold text-amber-700">
+          📷 Includes post-assessment photo
+          {all.length > 1 ? "s" : ""}
+        </p>
+      )}
     </div>
   );
 }
@@ -87,6 +109,7 @@ interface FindingRow {
   finding: Finding;
   clientName: string;
   date: string;
+  completedAt?: string;
   domainName: string;
   domainKey: string;
   templateName: string;
@@ -103,6 +126,7 @@ function loadRows(): FindingRow[] {
         finding: f,
         clientName: a?.clientName ?? "—",
         date: (a?.completedAt ?? a?.createdAt ?? "").slice(0, 10),
+        completedAt: a?.completedAt,
         domainName: hit?.domain.name ?? "—",
         domainKey: hit ? `${template.id}:${hit.domain.id}` : "",
         templateName: template.name,
@@ -400,7 +424,7 @@ function FindingsInner() {
                         {r.date ? ` · ${r.date}` : ""}
                         {` · ${r.domainName}`}
                       </p>
-                      <FindingThumbs photoIds={f.photoIds} />
+                      <FindingThumbs photoIds={f.photoIds} completedAt={r.completedAt} />
                       <p className="mt-1 hidden text-xs text-slate-600 print:block">
                         {caPrintLine(f)}
                       </p>

@@ -14,10 +14,16 @@ import {
   type EquipmentItem,
   type Finding,
   type ReportDoc,
+  type ResponseRow,
 } from "@/lib/store";
 import { resolveTemplate } from "@/lib/customTemplates";
-import { photosFor } from "@/lib/photos";
-import { REPORT_LABELS } from "@/lib/reports";
+import { listPhotos } from "@/lib/photos";
+import { REPORT_LABELS, buildCheckpointIndex } from "@/lib/reports";
+import { buildPhotoLog } from "@/lib/photoEvidence";
+import {
+  FindingEvidenceBlock,
+  PhotoLog,
+} from "@/components/PhotoEvidence";
 import { renderMarkdown } from "@/components/MarkdownView";
 import { useMode } from "@/lib/mode";
 import { Btn, RiskBadge, EmptyState, PageHeader } from "@/components/ui";
@@ -33,6 +39,7 @@ export default function ReportPrintPage() {
   const [doc, setDoc] = useState<ReportDoc | null>(null);
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
+  const [responses, setResponses] = useState<ResponseRow[]>([]);
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
 
   useEffect(() => {
@@ -48,6 +55,9 @@ export default function ReportPrintPage() {
             const rank: Record<string, number> = { high: 0, moderate: 1, low: 2 };
             return (rank[x.risk] ?? 3) - (rank[y.risk] ?? 3);
           })
+      );
+      setResponses(
+        db.responses.filter((r) => r.assessmentId === d.assessmentId)
       );
       setEquipment(db.equipment.filter((e) => e.assessmentId === d.assessmentId));
     }
@@ -94,6 +104,16 @@ export default function ReportPrintPage() {
         .join(", ") || "Not recorded"
     : "—";
   const withPhotos = findings.filter((f) => (f.photoIds?.length ?? 0) > 0);
+  const photoLog =
+    assessment && template
+      ? buildPhotoLog({
+          assessment,
+          findings,
+          responses,
+          photosById: new Map(listPhotos().map((p) => [p.id, p])),
+          checkpointIdx: buildCheckpointIndex(template),
+        })
+      : [];
 
   return (
     <div>
@@ -156,37 +176,27 @@ export default function ReportPrintPage() {
         {renderMarkdown(doc.markdown)}
       </div>
 
-      {/* Photo evidence appendix */}
-      {withPhotos.length > 0 && (
+      {/* Photo evidence at each finding (photo standard, 2026-10-14):
+          finding → photos → recommendation in one view; post-assessment
+          photos badged, before/after paired. The closing Photo Log
+          below is the complete custody record. */}
+      {assessment && withPhotos.length > 0 && (
         <div className="mt-6 break-before-page rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
           <h2 className="mb-1 text-xl font-bold text-slate-900">Photo evidence</h2>
           <p className="mb-4 text-sm text-slate-500">
-            Field photos captured during the walkthrough, grouped by finding.
+            Each finding with its photo evidence and recommendation.
+            Photos added after the assessment was completed are badged
+            “Post-assessment” and paired as before/after.
           </p>
           <div className="space-y-6">
-            {withPhotos.map((f) => {
-              const photos = photosFor(f.photoIds);
-              if (!photos.length) return null;
-              return (
-                <div key={f.id} className="break-inside-avoid">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm font-semibold text-slate-900">{f.gapText}</p>
-                    <RiskBadge risk={f.risk} />
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3">
-                    {photos.map((p) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        key={p.id}
-                        src={p.dataUrl}
-                        alt={f.gapText}
-                        className="h-40 w-full rounded-xl border border-slate-200 object-cover"
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+            {findings.map((f, i) => (
+              <FindingEvidenceBlock
+                key={f.id}
+                assessment={assessment}
+                finding={f}
+                index={i}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -212,6 +222,19 @@ export default function ReportPrintPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Closing Photo Log — every photo on the assessment, including
+          ones not tied to a finding (photo standard, 2026-10-14). */}
+      {photoLog.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
+          <h2 className="mb-1 text-xl font-bold text-slate-900">Photo log</h2>
+          <p className="mb-2 text-sm text-slate-500">
+            Complete record of photo evidence for this assessment, in
+            the order captured.
+          </p>
+          <PhotoLog entries={photoLog} />
         </div>
       )}
     </div>

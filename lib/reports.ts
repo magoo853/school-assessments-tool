@@ -29,7 +29,13 @@ import {
 import { fslLabel, populationPoints, sizePoints } from "@/lib/fsl";
 
 import type { AssessmentTemplate } from "@/lib/templates";
-import { photosFor } from "./photos";
+import { photosFor, listPhotos } from "./photos";
+import {
+  splitByTiming,
+  buildPhotoLog,
+  fmtPhotoStamp,
+  postBadgeLabel,
+} from "./photoEvidence";
 import { getBranding } from "./branding";
 import { renderMarkdownHtml } from "@/components/MarkdownView";
 
@@ -563,6 +569,7 @@ export interface ShareHtmlInput {
   report: ReportDoc;
   assessment: Assessment;
   findings: Finding[];
+  responses: ResponseRow[];
   equipment: EquipmentItem[];
   template?: AssessmentTemplate | null;
 }
@@ -593,23 +600,75 @@ export function buildShareHtml(input: ShareHtmlInput): string {
       : "";
   const body = renderMarkdownHtml(report.markdown);
 
-  const withPhotos = findings.filter((f) => (f.photoIds?.length ?? 0) > 0);
-  const photoSections = withPhotos
-    .map((f) => {
+  // Photo evidence per the approved standard (2026-10-14): photos sit
+  // AT their finding (finding → photos → recommendation), the first
+  // two at readable size and the rest as thumbnails; post-assessment
+  // photos are badged and pair as before/after; a closing Photo Log
+  // then lists every photo on the assessment.
+  const sortedFindings = sortFindings(findings);
+  const badgeHtml = (createdAt: string) =>
+    `<span class="badge">📷 ${escAttr(postBadgeLabel({ createdAt }))}</span>`;
+  const figHtml = (
+    f: Finding,
+    p: { dataUrl: string; caption: string; createdAt: string },
+    post: boolean,
+    large: boolean
+  ): string => {
+    const src = safeImg(p.dataUrl);
+    if (!src) return "";
+    return `<figure class="${large ? "lg" : "sm"}"><img src="${src}" alt="${escAttr(f.gapText)}"/>${post ? badgeHtml(p.createdAt) : ""}${p.caption?.trim() ? `<figcaption>${escAttr(p.caption.trim())}</figcaption>` : ""}</figure>`;
+  };
+  const eraGroup = (
+    f: Finding,
+    label: string,
+    photos: ReturnType<typeof photosFor>,
+    post: boolean
+  ): string => {
+    if (!photos.length) return "";
+    const figs = photos
+      .map((p, i) => figHtml(f, p, post, i < 2))
+      .filter(Boolean)
+      .join("\n");
+    if (!figs) return "";
+    return `<div class="era"><p class="era-label${post ? " post" : ""}">${label}</p><div class="grid">${figs}</div></div>`;
+  };
+  const evidenceSections = sortedFindings
+    .map((f, i) => {
       const photos = photosFor(f.photoIds);
       if (!photos.length) return "";
-      const imgs = photos
-        .map((p) => ({ p, src: safeImg(p.dataUrl) }))
-        .filter((x) => x.src)
-        .map(
-          ({ p, src }) =>
-            `<figure><img src="${src}" alt="${escAttr(f.gapText)}"/><figcaption>${escAttr(f.gapText)} — ${riskLabel(f.risk)} risk</figcaption></figure>`
-        )
-        .join("\n");
-      if (!imgs) return "";
-      return `<section class="photos"><h3>${escAttr(f.gapText)}</h3><div class="grid">${imgs}</div></section>`;
+      const { during, post } = splitByTiming(a, photos);
+      const groups =
+        during.length && post.length
+          ? `<div class="pair">${eraGroup(f, "Before · during assessment", during, false)}${eraGroup(f, "After · post-assessment", post, true)}</div>`
+          : eraGroup(
+              f,
+              post.length ? "Post-assessment evidence" : "Photo evidence",
+              post.length ? post : during,
+              post.length > 0
+            );
+      if (!groups) return "";
+      return `<section class="finding-photos"><h3>${i + 1}. ${escAttr(f.gapText)} <span class="risk">${escAttr(riskLabel(f.risk))} risk</span></h3>${groups}${f.recommendation?.trim() ? `<p class="rec"><strong>Recommendation:</strong> ${escAttr(f.recommendation.trim())}</p>` : ""}</section>`;
     })
     .join("\n");
+
+  const logEntries = buildPhotoLog({
+    assessment: a,
+    findings: sortedFindings,
+    responses: input.responses ?? [],
+    photosById: new Map(listPhotos().map((p) => [p.id, p])),
+    checkpointIdx: buildCheckpointIndex(template),
+  });
+  const logRows = logEntries
+    .map((e, i) => {
+      const src = safeImg(e.photo.dataUrl);
+      if (!src) return "";
+      return `<tr><td><img src="${src}" alt=""/></td><td><strong>Photo ${i + 1}</strong><br/>${escAttr(fmtPhotoStamp(e.photo.createdAt))}${e.post ? `<br/>${badgeHtml(e.photo.createdAt)}` : ""}</td><td>${escAttr(e.location)}${e.criterion ? `<br/><span class="dim">“${escAttr(e.criterion)}”</span>` : ""}</td><td>${e.findingIndex ? `Finding ${e.findingIndex}: ${escAttr(e.findingGap ?? "")}` : "Not tied to a finding"}${e.photo.caption?.trim() ? `<br/><span class="dim">Caption: ${escAttr(e.photo.caption.trim())}</span>` : ""}</td></tr>`;
+    })
+    .filter(Boolean)
+    .join("\n");
+  const photoLogHtml = logRows
+    ? `<section class="photolog"><h2>Photo log</h2><p class="dim">Complete record of photo evidence for this assessment, in the order captured.</p><table><thead><tr><th></th><th>Captured</th><th>Location</th><th>Reference</th></tr></thead><tbody>${logRows}</tbody></table></section>`
+    : "";
 
   const equipRows = equipment.length
     ? `<section><h2>Equipment recommendations</h2><table><thead><tr><th>Item</th><th>Detail</th><th>Priority</th></tr></thead><tbody>${equipment
@@ -653,6 +712,23 @@ export function buildShareHtml(input: ShareHtmlInput): string {
   .photos figure { margin: 0; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
   .photos img { width: 100%; height: 180px; object-fit: cover; display: block; }
   .photos figcaption { font-size: 12px; color: #64748b; padding: 8px 10px; }
+  .finding-photos { margin: 0 0 24px; }
+  .finding-photos .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 8px 0 4px; }
+  .finding-photos figure { position: relative; margin: 0; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+  .finding-photos figure img { width: 100%; object-fit: cover; display: block; }
+  .finding-photos figure.lg img { height: 260px; }
+  .finding-photos figure.sm img { height: 110px; }
+  .finding-photos figcaption { font-size: 12px; color: #64748b; padding: 8px 10px; }
+  .finding-photos .risk { font-size: 12px; color: #7c3aed; font-weight: 600; white-space: nowrap; }
+  .finding-photos .rec { font-size: 14px; color: #475569; margin-top: 8px; }
+  .era-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #64748b; margin: 10px 0 2px; }
+  .era-label.post { color: #b45309; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 640px) { .pair { grid-template-columns: 1fr; } .finding-photos .grid { grid-template-columns: 1fr 1fr; } }
+  .badge { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 600; }
+  figure .badge { position: absolute; top: 8px; left: 8px; }
+  .photolog table img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; display: block; }
+  .photolog .dim, .dim { color: #64748b; font-size: 12px; }
   .footer { padding: 20px 32px; background: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; }
   @media print { body { background: #fff; padding: 0; } .doc { box-shadow: none; border-radius: 0; } .banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style>
@@ -669,8 +745,9 @@ export function buildShareHtml(input: ShareHtmlInput): string {
   </div>
   <div class="content">
     ${body}
-    ${photoSections ? `<h2>Photo evidence</h2>\n${photoSections}` : ""}
+    ${evidenceSections ? `<h2>Photo evidence</h2>\n${evidenceSections}` : ""}
     ${equipRows}
+    ${photoLogHtml}
   </div>
   <div class="footer">Shared as a self-contained file — opens in any browser, no account needed.${company ? "" : " Generated by the School Assessments Tool."}</div>
 </div>
