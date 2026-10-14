@@ -55,7 +55,13 @@ creates its own `assessment_templates` rows).
   "scheduledDate": "2026-09-14" | null,
   "completedDate": "2026-09-15" | null,
   "score": 84.2,              // % of yes/no checkpoints passed (yes / (yes + no); N/A excluded), 1 decimal; null if none answered
-  "summary": "...",           // provenance + assessors + focus notes
+  "review": {                 // OPTIONAL (added Cycle 14, still v1 — see below); present only when a review record exists
+    "state": "pending" | "approved" | "sent_back",
+    "submittedBy": "...", "submittedAt": "2026-09-15T14:00:00.000Z",
+    "reviewerName": "...",    // optional; the reviewer asked to review
+    "decidedBy": "...", "decidedAt": "...", "comment": "..."  // optional; comment required in-app when sent back
+  },
+  "summary": "...",           // provenance + assessors + focus notes + a "Review: …" line when a review record exists
   "responses": [
     { "domain": "...", "number": "1.1", "question": "...",
       "answer": "yes" | "no" | "na",
@@ -80,6 +86,23 @@ creates its own `assessment_templates` rows).
 ```
 
 Only answered checkpoints are exported (`answer` is never null).
+
+### Review provenance and v1 compatibility (Cycle 14)
+
+The Hub importer (client preview + server action) hard-rejects any
+`version !== 1` but reads fields through tolerant helpers and ignores
+unknown fields. Therefore the approval record ships as an **optional
+field inside version 1** — bumping to version 2 would break every
+current Hub install, while the extra field is safely ignored by
+today's importer. Two channels carry the provenance:
+
+1. Structured: `assessments[].review` (above) for a future importer.
+   The device-local `reviewerId` is deliberately not exported.
+2. Human-readable today: a `Review: approved by … / sent back by … /
+   pending … Submitted for review by …` line is appended to
+   `assessments[].summary`, which the v1 importer stores verbatim —
+   so the approval is visible in the Hub even before it learns to
+   parse the structured field.
 
 ## schedules[]
 

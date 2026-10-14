@@ -15,6 +15,7 @@ import {
   db,
   type Assessment,
   type AssessmentStatus,
+  type ReviewRecord,
 } from "@/lib/store";
 import { TEMPLATES } from "@/lib/templates";
 import { resolveTemplate } from "@/lib/customTemplates";
@@ -62,6 +63,64 @@ export interface ExchangeReport {
   updatedAt: string;
 }
 
+/**
+ * Peer-review / approval provenance for an assessment (Cycle 14).
+ *
+ * v1-compatibility ruling (assessed against the Hub importer in
+ * components/import/ImportClient.tsx + app/assessments/import/actions.ts):
+ * the importer hard-rejects any version !== 1 but reads fields through
+ * tolerant helpers and ignores unknown fields. So this record travels
+ * as an OPTIONAL field inside version 1 — a version bump to 2 would
+ * break every current Hub install, while an extra optional field is
+ * ignored by today's importer and consumable by a future one. The
+ * human-readable line is also appended to `summary` (see
+ * reviewSummaryLine) so the provenance is visible in the Hub today,
+ * since `summary` is imported verbatim.
+ * Names/dates are snapshots, exactly as recorded by lib/review.ts;
+ * the internal reviewerId is deliberately NOT exported (device-local
+ * id, meaningless in the Hub).
+ */
+export interface ExchangeReview {
+  state: "pending" | "approved" | "sent_back";
+  submittedBy: string;
+  submittedAt: string;
+  reviewerName?: string;
+  decidedBy?: string;
+  decidedAt?: string;
+  comment?: string;
+}
+
+/** Map a stored review record to its exchange form; null when absent. */
+export function toExchangeReview(
+  review: ReviewRecord | undefined | null
+): ExchangeReview | null {
+  if (!review) return null;
+  const out: ExchangeReview = {
+    state: review.state,
+    submittedBy: review.submittedBy,
+    submittedAt: review.submittedAt,
+  };
+  if (review.reviewerName) out.reviewerName = review.reviewerName;
+  if (review.decidedBy) out.decidedBy = review.decidedBy;
+  if (review.decidedAt) out.decidedAt = review.decidedAt;
+  if (review.comment) out.comment = review.comment;
+  return out;
+}
+
+/** One-line provenance for the exchange `summary` (imported verbatim by
+ *  the v1 Hub importer, so approval survives the trip today). */
+export function reviewSummaryLine(review: ExchangeReview | null): string {
+  if (!review) return "";
+  const submitted = `Submitted for review by ${review.submittedBy} on ${review.submittedAt.slice(0, 10)}.`;
+  if (review.state === "approved") {
+    return `Review: approved by ${review.decidedBy ?? "reviewer"}${review.decidedAt ? ` on ${review.decidedAt.slice(0, 10)}` : ""}. ${submitted}`;
+  }
+  if (review.state === "sent_back") {
+    return `Review: sent back by ${review.decidedBy ?? "reviewer"}${review.decidedAt ? ` on ${review.decidedAt.slice(0, 10)}` : ""}${review.comment ? ` — "${review.comment}"` : ""}. ${submitted}`;
+  }
+  return `Review: pending${review.reviewerName ? ` (reviewer: ${review.reviewerName})` : ""}. ${submitted}`;
+}
+
 export interface ExchangeAssessment {
   clientName: string;
   campus: string;
@@ -72,6 +131,8 @@ export interface ExchangeAssessment {
   completedDate: string | null;
   /** Percent of answered checkpoints passed (yes / (yes + no)), 1 decimal; null when nothing answered. */
   score: number | null;
+  /** Approval provenance; present only when the assessment has a review record. Optional inside v1 — see ExchangeReview. */
+  review?: ExchangeReview;
   summary: string;
   responses: ExchangeResponse[];
   findings: ExchangeFinding[];
@@ -190,11 +251,14 @@ function exportAssessment(a: Assessment): ExchangeAssessment {
   const team = a.assessorIds.map((id) => assessorName(id, assessors)).filter(Boolean);
   const names = [...new Set([lead, ...team].filter(Boolean))];
 
+  const review = toExchangeReview(a.review);
+
   const summaryLines = [
     `Imported from the School Assessments Tool on ${new Date().toISOString().slice(0, 10)}.`,
     names.length ? `Assessors: ${names.join(", ")}.` : "",
     a.cover?.date ? `Walkthrough date: ${a.cover.date}.` : "",
     a.focusNotes ? `Focus: ${a.focusNotes}` : "",
+    reviewSummaryLine(review),
   ].filter(Boolean);
 
   const scheduled = a.scheduledId ? db.schedules.get(a.scheduledId) : undefined;
@@ -208,6 +272,7 @@ function exportAssessment(a: Assessment): ExchangeAssessment {
     scheduledDate: scheduled?.date ?? a.cover?.date ?? null,
     completedDate: a.completedAt ? a.completedAt.slice(0, 10) : null,
     score: answered > 0 ? Math.round((yes / answered) * 1000) / 10 : null,
+    ...(review ? { review } : {}),
     summary: summaryLines.join("\n"),
     responses: outResponses,
     findings,
