@@ -30,6 +30,7 @@ export default function ReportViewPage() {
   const [loaded, setLoaded] = useState(false);
   const [aiInserted, setAiInserted] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
   const [shareMsg, setShareMsg] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -340,7 +341,13 @@ export default function ReportViewPage() {
       </div>
 
       {deleting && (
-        <Modal title="Delete this report?" onClose={() => setDeleting(false)}>
+        <Modal
+          title="Delete this report?"
+          onClose={() => {
+            setDeleting(false);
+            setDeleteText("");
+          }}
+        >
           <div className="space-y-3">
             <p className="text-sm text-slate-600">
               This permanently deletes{" "}
@@ -353,18 +360,37 @@ export default function ReportViewPage() {
               report can be regenerated from Reports at any time. This
               cannot be undone.
             </p>
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">
+                Type DELETE to confirm
+              </span>
+              <input
+                value={deleteText}
+                onChange={(e) => setDeleteText(e.target.value)}
+                placeholder="DELETE"
+                autoComplete="off"
+                className={`${inputCls} mt-1`}
+              />
+            </label>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
+                disabled={deleteText.trim().toUpperCase() !== "DELETE"}
                 onClick={() => {
                   deleteReport(doc.id);
                   router.push("/reports");
                 }}
-                className="min-h-[44px] flex-1 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 sm:flex-none sm:px-8"
+                className="min-h-[44px] flex-1 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none sm:px-8"
               >
                 Delete permanently
               </button>
-              <Btn variant="ghost" onClick={() => setDeleting(false)}>
+              <Btn
+                variant="ghost"
+                onClick={() => {
+                  setDeleting(false);
+                  setDeleteText("");
+                }}
+              >
                 Cancel
               </Btn>
             </div>

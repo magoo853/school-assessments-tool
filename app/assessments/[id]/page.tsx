@@ -963,6 +963,7 @@ export default function TakerPage() {
   const [switching, setSwitching] = useState(false);
   const [reassessing, setReassessing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
   const [unansweredOnly, setUnansweredOnly] = useState(false);
 
   useEffect(() => {
@@ -1317,7 +1318,13 @@ export default function TakerPage() {
       )}
 
       {deleting && (
-        <Modal title="Delete this assessment?" onClose={() => setDeleting(false)}>
+        <Modal
+          title="Delete this assessment?"
+          onClose={() => {
+            setDeleting(false);
+            setDeleteText("");
+          }}
+        >
           {(() => {
             const c = countAssessmentData(assessment.id);
             const parts = [
@@ -1327,6 +1334,7 @@ export default function TakerPage() {
               c.equipment ? `${c.equipment} equipment item${c.equipment === 1 ? "" : "s"}` : null,
               c.fslRecords ? "its FSL record" : null,
             ].filter(Boolean);
+            const armed = deleteText.trim().toUpperCase() === "DELETE";
             return (
               <div className="space-y-3">
                 <p className="text-sm text-slate-600">
@@ -1337,18 +1345,37 @@ export default function TakerPage() {
                     " The linked schedule entry stays and is unlinked."}{" "}
                   This cannot be undone.
                 </p>
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">
+                    Type DELETE to confirm
+                  </span>
+                  <input
+                    value={deleteText}
+                    onChange={(e) => setDeleteText(e.target.value)}
+                    placeholder="DELETE"
+                    autoComplete="off"
+                    className={`${inputCls} mt-1`}
+                  />
+                </label>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
+                    disabled={!armed}
                     onClick={() => {
                       deleteAssessmentCascade(assessment.id);
                       router.push("/assessments");
                     }}
-                    className="min-h-[44px] flex-1 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 sm:flex-none sm:px-8"
+                    className="min-h-[44px] flex-1 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none sm:px-8"
                   >
                     Delete permanently
                   </button>
-                  <Btn variant="ghost" onClick={() => setDeleting(false)}>
+                  <Btn
+                    variant="ghost"
+                    onClick={() => {
+                      setDeleting(false);
+                      setDeleteText("");
+                    }}
+                  >
                     Cancel
                   </Btn>
                 </div>
