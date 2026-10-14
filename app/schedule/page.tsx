@@ -449,7 +449,10 @@ function ReassessmentPanel({
 }: {
   onSchedule: (client: string) => void;
 }) {
-  const clients = useMemo(() => {
+  // Read per render like the rest of this page — a useMemo([]) here
+  // kept deleted clients lingering in "Reassessments due" until a
+  // full page reload (2026-10-13 audit observation).
+  const clients = (() => {
     const seen = new Map<string, string>();
     for (const name of [
       ...db.schedules.list().map((s) => s.clientName),
@@ -459,7 +462,7 @@ function ReassessmentPanel({
       if (key && !seen.has(key)) seen.set(key, name.trim());
     }
     return [...seen.values()].sort((a, b) => a.localeCompare(b));
-  }, []);
+  })();
 
   const rows = clients.map((c) => ({ client: c, ...getReassessment(c) }));
   const toneFor = (state: string) =>
