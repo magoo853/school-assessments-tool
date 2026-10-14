@@ -45,6 +45,7 @@ import { getProfile } from "@/lib/profile";
 import { domainViews } from "@/lib/walkthroughFilter";
 import {
   Card,
+  BackLink,
   PageHeader,
   Btn,
   StatusPill,
@@ -1075,6 +1076,7 @@ export default function TakerPage() {
 
   return (
     <div>
+      <BackLink href="/assessments" label="Assessments" />
       <PageHeader
         title={assessment.clientName}
         subtitle={`${assessment.campus} · ${template.name}`}

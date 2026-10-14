@@ -5,7 +5,7 @@ import Link from "next/link";
 import { db } from "@/lib/store";
 import type { CleryReport } from "@/lib/store";
 import { useMode } from "@/lib/mode";
-import { Card, PageHeader, Btn, Badge, Field, inputCls, EmptyState, Modal } from "@/components/ui";
+import { Card, PageHeader, Btn, Badge, Field, inputCls, EmptyState, Modal, BackLink } from "@/components/ui";
 import ProdNotice from "@/components/ProdNotice";
 import { blankCleryReport, statsWindow, statsProgress, disclosureProgress } from "@/lib/clery";
 import {
@@ -97,6 +97,7 @@ export default function CleryListPage() {
 
   return (
     <div className="mx-auto max-w-5xl p-4 md:p-6">
+      <BackLink href="/reports" label="Reports" />
       <PageHeader
         title="Clery Act ASR Builder"
         subtitle="Annual Security Report builder. An ASR for year Y covers statistics for Y−3 through Y−1."

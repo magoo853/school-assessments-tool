@@ -5,6 +5,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 
 export function Card({
   children,
@@ -19,6 +20,30 @@ export function Card({
     >
       {children}
     </section>
+  );
+}
+
+/**
+ * Standard back navigation for screens inside a tab (detail pages,
+ * sub-lists, drill-downs). Every non-tab screen carries one at the
+ * TOP, above its header — tab roots themselves don't (James,
+ * 2026-10-14: "all screens once you go into a tab should have a
+ * back button"). print:hidden — paper doesn't navigate.
+ */
+export function BackLink({
+  href,
+  label,
+}: {
+  href: string;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="mb-3 inline-flex min-h-[44px] items-center gap-1 text-sm font-medium text-violet-700 hover:underline print:hidden"
+    >
+      ← {label}
+    </Link>
   );
 }
 
