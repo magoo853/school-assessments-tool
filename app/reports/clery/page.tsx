@@ -8,6 +8,12 @@ import { useMode } from "@/lib/mode";
 import { Card, PageHeader, Btn, Badge, Field, inputCls, EmptyState, Modal } from "@/components/ui";
 import ProdNotice from "@/components/ProdNotice";
 import { blankCleryReport, statsWindow, statsProgress, disclosureProgress } from "@/lib/clery";
+import {
+  knownSchools,
+  priorAsrFor,
+  autofillDisclosures,
+  preparerDefaults,
+} from "@/lib/cleryAutofill";
 
 function ProgressBar({ value, max }: { value: number; max: number }) {
   const pct = max === 0 ? 0 : Math.round((value / max) * 100);
@@ -23,9 +29,15 @@ export default function CleryListPage() {
   const [reports, setReports] = useState<CleryReport[]>([]);
   const [showNew, setShowNew] = useState(false);
   const [institution, setInstitution] = useState("");
+  const [schools, setSchools] = useState<string[]>([]);
+  const [schoolChoice, setSchoolChoice] = useState("");
   const [reportYear, setReportYear] = useState(new Date().getFullYear());
   const [preparerName, setPreparerName] = useState("");
   const [preparerTitle, setPreparerTitle] = useState("");
+  const [lastCreated, setLastCreated] = useState<{
+    institution: string;
+    filledFrom: string[];
+  } | null>(null);
 
   const refresh = () => {
     setReports(
@@ -33,19 +45,53 @@ export default function CleryListPage() {
         .list()
         .sort((a, b) => b.reportYear - a.reportYear || a.institution.localeCompare(b.institution))
     );
+    setSchools(knownSchools());
   };
 
   useEffect(refresh, []);
+
+  /** Open the New ASR form with the preparer prefilled from My
+   *  Profile (or the school's last ASR once one is picked). */
+  const openNew = () => {
+    const d = preparerDefaults("");
+    setPreparerName(d.name);
+    setPreparerTitle(d.title);
+    setInstitution("");
+    setSchoolChoice("");
+    setLastCreated(null);
+    refresh();
+    setShowNew(true);
+  };
+
+  const pickSchool = (choice: string) => {
+    setSchoolChoice(choice);
+    if (choice === "__new") {
+      setInstitution("");
+      return;
+    }
+    setInstitution(choice);
+    const d = preparerDefaults(choice);
+    if (d.name) setPreparerName(d.name);
+    if (d.title) setPreparerTitle(d.title);
+  };
 
   const createReport = () => {
     if (!institution.trim()) return;
     const year = Number.isFinite(reportYear) ? reportYear : new Date().getFullYear();
     const r = blankCleryReport(institution.trim(), year, preparerName.trim(), preparerTitle.trim());
+    const auto = autofillDisclosures(institution.trim(), r.disclosures);
+    r.disclosures = auto.disclosures;
     db.cleryReports.upsert(r);
     setShowNew(false);
     setInstitution("");
+    setSchoolChoice("");
     setPreparerName("");
     setPreparerTitle("");
+    setLastCreated(
+      auto.filledFrom.length
+        ? { institution: r.institution, filledFrom: auto.filledFrom }
+        : null
+    );
     refresh();
   };
 
@@ -54,9 +100,33 @@ export default function CleryListPage() {
       <PageHeader
         title="Clery Act ASR Builder"
         subtitle="Annual Security Report builder. An ASR for year Y covers statistics for Y−3 through Y−1."
-        actions={<Btn onClick={() => setShowNew(true)}>+ New ASR</Btn>}
+        actions={<Btn onClick={openNew}>+ New ASR</Btn>}
       />
       {mode === "prod" && <ProdNotice />}
+      {lastCreated && (
+        <Card className="mb-4 border-emerald-200 bg-emerald-50">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-emerald-900">
+                ASR created for {lastCreated.institution} — started from
+                what the app already knows:
+              </p>
+              <ul className="mt-1 list-disc pl-5 text-sm text-emerald-800">
+                {lastCreated.filledFrom.map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
+              <p className="mt-1 text-xs text-emerald-700">
+                Review the filled statements in the editor — statistics
+                are never autofilled and still need entry.
+              </p>
+            </div>
+            <Btn variant="ghost" onClick={() => setLastCreated(null)}>
+              Dismiss
+            </Btn>
+          </div>
+        </Card>
+      )}
 
       {reports.length === 0 ? (
         <EmptyState
@@ -110,14 +180,55 @@ export default function CleryListPage() {
       {showNew && (
         <Modal title="New Annual Security Report" onClose={() => setShowNew(false)}>
           <div className="grid gap-4">
-            <Field label="Institution" hint="Fictional placeholder name for demo work.">
-              <input
-                className={inputCls}
-                value={institution}
-                onChange={(e) => setInstitution(e.target.value)}
-                placeholder="e.g. Harborview College"
-              />
-            </Field>
+            {schools.length > 0 && (
+              <Field
+                label="School"
+                hint="Schools the app already knows — from assessments, the schedule, and past ASRs."
+              >
+                <select
+                  className={inputCls}
+                  value={schoolChoice}
+                  onChange={(e) => pickSchool(e.target.value)}
+                >
+                  <option value="">Select a school…</option>
+                  {schools.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                  <option value="__new">➕ New school (type the name)</option>
+                </select>
+              </Field>
+            )}
+            {(schools.length === 0 || schoolChoice === "__new" || schoolChoice === "") && (
+              <Field label="Institution" hint="Fictional placeholder name for demo work.">
+                <input
+                  className={inputCls}
+                  value={institution}
+                  onChange={(e) => setInstitution(e.target.value)}
+                  placeholder="e.g. Harborview College"
+                />
+              </Field>
+            )}
+            {schoolChoice !== "" &&
+              schoolChoice !== "__new" &&
+              (() => {
+                const prior = priorAsrFor(schoolChoice);
+                return prior ? (
+                  <p className="rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-800">
+                    This school filed an ASR {prior.reportYear} — its
+                    disclosure statements and preparer will carry
+                    forward. Anything the policy library covers fills
+                    the rest. Statistics are never autofilled.
+                  </p>
+                ) : (
+                  <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    No past ASR for this school — disclosures the
+                    policy library covers will be filled from it.
+                    Statistics are never autofilled.
+                  </p>
+                );
+              })()}
             <Field label="Report year" hint={`Statistics will cover ${reportYear - 3}–${reportYear - 1}.`}>
               <input
                 className={inputCls}
