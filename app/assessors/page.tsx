@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { db, uid } from "@/lib/store";
 import type { Assessor, ClearanceStatus } from "@/lib/store";
+import { compressImageFile } from "@/lib/photos";
 import { useMode } from "@/lib/mode";
 import { assessorWorkload, type AssessorWorkload } from "@/lib/data";
 import {
@@ -114,6 +115,11 @@ function readAsDataURL(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
+
+/** Non-image uploads (clearance-letter PDFs) are stored verbatim as
+ *  data URLs inside the assessors table — cap them so one scan can't
+ *  blow the shared ~5MB device quota and brick every other save. */
+const MAX_LETTER_BYTES = 1_500_000;
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -327,6 +333,7 @@ export default function AssessorsPage() {
   const [form, setForm] = useState<FormState>(blankForm());
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  const [fileError, setFileError] = useState("");
 
   const refresh = () => setRows(db.assessors.list() as AssessorRow[]);
 
@@ -376,12 +383,32 @@ export default function AssessorsPage() {
 
   const onPhotoFile = async (file: File | undefined) => {
     if (!file) return;
-    set("photo", await readAsDataURL(file));
+    setFileError("");
+    try {
+      // Compress like walkthrough photos — a raw phone photo (3–8MB)
+      // would otherwise sit uncompressed in the assessors table.
+      set("photo", await compressImageFile(file));
+    } catch {
+      setFileError("That photo couldn't be read as an image.");
+    }
   };
 
   const onLetterFile = async (file: File | undefined) => {
     if (!file) return;
-    set("clearanceLetter", await readAsDataURL(file));
+    setFileError("");
+    try {
+      if (file.type.startsWith("image/")) {
+        set("clearanceLetter", await compressImageFile(file));
+      } else if (file.size > MAX_LETTER_BYTES) {
+        setFileError(
+          `That file is ${(file.size / 1_000_000).toFixed(1)}MB — clearance letters are stored on-device, so keep PDFs under 1.5MB (a compressed scan works).`
+        );
+      } else {
+        set("clearanceLetter", await readAsDataURL(file));
+      }
+    } catch {
+      setFileError("That file couldn't be read.");
+    }
   };
 
   const save = () => {
@@ -646,6 +673,9 @@ export default function AssessorsPage() {
               />
             </Field>
 
+            {fileError && (
+              <p className="text-sm font-medium text-red-600">{fileError}</p>
+            )}
             <div className="flex gap-2 pt-2">
               <Btn
                 onClick={save}

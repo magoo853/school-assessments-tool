@@ -13,7 +13,7 @@ import {
   DEFAULT_TEMPLATE_ID,
   templateSize,
 } from "@/lib/templates";
-import { resolveTemplate, allTemplates } from "@/lib/customTemplates";
+import { resolveTemplate, allTemplates, isTemplateMissing } from "@/lib/customTemplates";
 import { useMode } from "@/lib/mode";
 import ProdNotice from "@/components/ProdNotice";
 import TemplatePickerModal from "@/components/TemplatePickerModal";
@@ -51,11 +51,18 @@ function updatedAt(a: Assessment): string {
 }
 
 function progress(a: Assessment): { answered: number; total: number } {
-  const total = templateSize(resolveTemplate(a.templateId));
+  const template = resolveTemplate(a.templateId);
+  const total = templateSize(template);
+  // Only answers against the current template's checkpoints count —
+  // stale responses from a previous template inflated this past 100%.
+  const keys = new Set(
+    template.domains.flatMap((d) => d.checkpoints.map((c) => c.key))
+  );
   const answered = db.responses.filter(
-    (r) => r.assessmentId === a.id && r.answer !== null
+    (r) =>
+      r.assessmentId === a.id && r.answer !== null && keys.has(r.checkpointKey)
   ).length;
-  return { answered, total };
+  return { answered: Math.min(answered, total), total };
 }
 
 function fmtDate(iso: string): string {
@@ -306,6 +313,9 @@ function AssessmentsInner() {
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Badge tone="blue">{templateName(a.templateId)}</Badge>
+                    {isTemplateMissing(a.templateId) && (
+                      <Badge tone="amber">⚠ Template not on this device</Badge>
+                    )}
                     {a.review?.state === "pending" && (
                       <Badge tone="amber">⏳ In review</Badge>
                     )}

@@ -149,6 +149,18 @@ function TemplateBuilder({
 
   return (
     <div className="space-y-5">
+      {templateInUse(draft.id) && (
+        <p
+          className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800"
+          role="alert"
+        >
+          ⚠ This template is in use by an assessment or schedule. Editing
+          checkpoint wording is safe, but removing a checkpoint — or a whole
+          domain — disconnects the answers already recorded against it on
+          those assessments. Their stored answers stay on the device but
+          stop counting toward progress and findings.
+        </p>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Template name">
           <input

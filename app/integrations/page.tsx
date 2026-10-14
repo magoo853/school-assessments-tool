@@ -22,6 +22,7 @@ import {
   type UsageSummary,
 } from "@/lib/storage";
 import type { PhotoDoc } from "@/lib/photos";
+import { getCorruptKeys } from "@/lib/store";
 import {
   getEquipmentCleanupPlan,
   cleanupStaleEquipmentLinks,
@@ -44,6 +45,7 @@ export default function IntegrationsPage() {
   const [deviceWorking, setDeviceWorking] = useState<boolean | null>(null);
   const [keyMsg, setKeyMsg] = useState<string | null>(null);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
+  const [corruptKeys, setCorruptKeys] = useState<string[]>([]);
   const [orphans, setOrphans] = useState<PhotoDoc[]>([]);
   const [confirmCleanup, setConfirmCleanup] = useState(false);
   const [storageMsg, setStorageMsg] = useState<string | null>(null);
@@ -53,6 +55,7 @@ export default function IntegrationsPage() {
 
   const loadStorage = async () => {
     setUsage(await getStorageUsage());
+    setCorruptKeys(getCorruptKeys());
     setOrphans(getOrphanedPhotos());
     setEquipPlan(getEquipmentCleanupPlan());
     setConfirmCleanup(false);
@@ -96,7 +99,7 @@ export default function IntegrationsPage() {
   const check = async () => {
     setChecking(true);
     try {
-      const res = await fetch("/api/ai-health");
+      const res = await fetch("/api/ai-health", { cache: "no-store" });
       setHealth((await res.json()) as Health);
     } catch {
       setHealth(null);
@@ -288,6 +291,15 @@ export default function IntegrationsPage() {
               fills up, new photos stop saving, so keep an eye on the headroom
               before a site visit.
             </p>
+            {corruptKeys.length > 0 && (
+              <p className="mt-2 max-w-xl rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                {corruptKeys.length} saved dataset{corruptKeys.length === 1 ? " was" : "s were"}{" "}
+                unreadable and {corruptKeys.length === 1 ? "has" : "have"} been set
+                aside (keys: {corruptKeys.join(", ")}). The original data is
+                preserved on this device — contact support before clearing
+                anything, and restore from a backup if you have one.
+              </p>
+            )}
           </div>
           {usage ? (
             <Badge
