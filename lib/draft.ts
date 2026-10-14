@@ -27,11 +27,17 @@ export async function requestDraft(
   data: unknown,
   existingDraft?: string
 ): Promise<DraftResult> {
+  // Client-side timeout (~35s, just past the server's 28s chain
+  // budget): without it, a hung connection left the button on
+  // "Drafting…" indefinitely in the field.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 35_000);
   try {
     const apiKey = getAiKey();
     const res = await fetch("/api/draft", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         section,
         data,
@@ -50,7 +56,20 @@ export async function requestDraft(
     const code = json?.error?.code ?? `HTTP_${res.status}`;
     const message = json?.error?.message ?? "Drafting failed";
     return { ok: false, code, message };
-  } catch {
-    return { ok: false, code: "NETWORK_ERROR", message: "Drafting failed" };
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      return {
+        ok: false,
+        code: "TIMEOUT",
+        message: "Drafting timed out — check your connection and try again.",
+      };
+    }
+    return {
+      ok: false,
+      code: "NETWORK_ERROR",
+      message: "Couldn't reach the drafting service — check your connection.",
+    };
+  } finally {
+    clearTimeout(timer);
   }
 }

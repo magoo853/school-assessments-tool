@@ -11,7 +11,7 @@
  * offline; this worker only keeps the app shell loadable without signal.
  */
 
-const CACHE = "sat-shell-v15";
+const CACHE = "sat-shell-v16";
 
 self.addEventListener("install", (event) => {
   // Deliberately NO skipWaiting() here: a new version parks in the
@@ -61,17 +61,27 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Navigations: network-first with cached fallback.
+  // Navigations: network-first with cached fallback. Only cache OK
+  // responses — a transient 404/500 page must not become the shell
+  // served offline later.
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
           return res;
         })
         .catch(() => caches.match(req).then((hit) => hit || caches.match("/")))
     );
+    return;
+  }
+
+  // API calls: network-only. Health checks and drafts must never be
+  // served stale from the SWR cache below.
+  if (url.pathname.startsWith("/api/")) {
     return;
   }
 

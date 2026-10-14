@@ -38,7 +38,7 @@ own key):
 - `AI_API_KEY` — Bearer token for the chat-completions API. Required.
 - `AI_API_BASE` — OpenAI-compatible chat-completions base URL.
   Default: `https://api.openai.com/v1`.
-- `AI_MODEL` — Model name. Default: `gpt-4o-mini`.
+- `AI_MODEL` — Model name. Default: `gemini-3.8-flash` (fallbacks: `gemini-3.6-flash`, `gemini-3.5-flash-lite`).
 
 Contract:
 

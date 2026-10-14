@@ -39,6 +39,24 @@ export function allTemplates(): {
   ];
 }
 
+/** True when an assessment references a template that no longer exists
+ *  on this device (a deleted custom template, or an id that arrived via
+ *  a backup from another device). resolveTemplate() silently falls
+ *  back to a built-in in that case — callers should say so instead of
+ *  presenting the fallback as the assessment's real template. */
+export function isTemplateMissing(templateId: string | undefined): boolean {
+  if (!templateId) return false;
+  if (isCustomTemplateId(templateId)) {
+    return !db.customTemplates.get(templateId);
+  }
+  return !TEMPLATES.some((t) => t.id === templateId);
+}
+
+/** How many assessments currently use a template. */
+export function templateUsageCount(id: ID): number {
+  return db.assessments.list().filter((a) => a.templateId === id).length;
+}
+
 function customToTemplate(c: CustomTemplate): AssessmentTemplate {
   const domains: TemplateDomain[] = c.domains.map((d) => ({
     id: d.id,

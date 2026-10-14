@@ -17,6 +17,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
+/** The whole model-fallback chain shares one ~28s budget (see
+ *  callUpstream) — declare it so the platform doesn't cut us off
+ *  mid-chain with an opaque severed connection. */
+export const maxDuration = 30;
+
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
@@ -245,8 +250,14 @@ async function callUpstream(
   }
 
   const models = Array.from(new Set([AI_MODEL, ...AI_MODEL_FALLBACKS]));
+  // ONE budget for the whole chain (~28s). The old shape — 60s per
+  // model × 3 models ≈ 180s — outran the platform's function limit, so
+  // slow upstreams presented as a severed connection after a long hang.
+  const deadline = Date.now() + 28_000;
   let lastStatus = 0;
   for (const model of models) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
     let res: Response;
     try {
       res = await fetch(`${AI_API_BASE}/chat/completions`, {
@@ -264,10 +275,15 @@ async function callUpstream(
           temperature: 0.4,
           max_tokens: 1500,
         }),
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.timeout(remaining),
       });
     } catch {
-      throw Object.assign(new Error("AI service unreachable."), { code: "AI_UPSTREAM_ERROR" });
+      if (Date.now() >= deadline) {
+        throw Object.assign(new Error("AI service timed out."), {
+          code: "AI_UPSTREAM_ERROR",
+        });
+      }
+      continue; // a connection-level failure might heal on the next model
     }
 
     if (!res.ok) {
@@ -275,6 +291,11 @@ async function callUpstream(
       // Auth failures won't heal by switching models; everything else might.
       lastStatus = res.status;
       if (res.status === 401 || res.status === 403) break;
+      if (res.status === 429 && Date.now() + 1_200 < deadline) {
+        // Free-tier rate limit: back off briefly instead of hammering
+        // the same quota with the next model immediately.
+        await new Promise((r) => setTimeout(r, 1_200));
+      }
       continue;
     }
 

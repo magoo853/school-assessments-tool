@@ -47,7 +47,9 @@ export default function AiDraftButton({
     } else if (r.code === "AI_NOT_CONFIGURED") {
       setHint(AI_NOT_CONFIGURED_HINT);
     } else {
-      setErr("Drafting failed — try again");
+      // Surface the server's actual message (timeout, rate limit,
+      // upstream status) — a generic "try again" hid all of them.
+      setErr(r.message || "Drafting failed — try again");
     }
     setBusy(false);
   };
