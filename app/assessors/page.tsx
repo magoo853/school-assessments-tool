@@ -29,6 +29,7 @@ import {
   inputCls,
   EmptyState,
   Modal,
+  ConfirmModal,
 } from "@/components/ui";
 import ProdNotice from "@/components/ProdNotice";
 
@@ -435,9 +436,13 @@ export default function AssessorsPage() {
     refresh();
   };
 
-  const remove = (a: AssessorRow) => {
-    if (!window.confirm(`Remove ${a.name} from the assessor directory?`)) return;
-    db.assessors.remove(a.id);
+  const [confirmRemove, setConfirmRemove] = useState<AssessorRow | null>(null);
+
+  const remove = (a: AssessorRow) => setConfirmRemove(a);
+
+  const doRemove = () => {
+    if (!confirmRemove) return;
+    db.assessors.remove(confirmRemove.id);
     refresh();
   };
 
@@ -517,6 +522,17 @@ export default function AssessorsPage() {
             />
           ))}
         </div>
+      )}
+
+      {confirmRemove && (
+        <ConfirmModal
+          title="Remove this assessor?"
+          body={`Remove ${confirmRemove.name} from the assessor directory? Assessments they worked on keep their recorded names.`}
+          confirmLabel="Remove"
+          danger
+          onConfirm={doRemove}
+          onClose={() => setConfirmRemove(null)}
+        />
       )}
 
       {showForm && (

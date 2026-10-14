@@ -9,6 +9,7 @@ import {
   Badge,
   Btn,
   Card,
+  ConfirmModal,
   EmptyState,
   Field,
   Modal,
@@ -118,7 +119,9 @@ function ScheduleForm({
     initial?.focusNotes ?? (prefill ? "Annual reassessment" : "")
   );
   const [error, setError] = useState("");
-  const assessors = useMemo(() => db.assessors.list(), []);
+  // Read per render (the store caches parsing) — a useMemo([]) here
+  // froze the dropdown at first mount, hiding newly added assessors.
+  const assessors = db.assessors.list();
 
   const save = () => {
     if (!clientName.trim()) {
@@ -240,6 +243,7 @@ function ScheduleRow({
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState<"cancel" | "delete" | null>(null);
   const assessor = item.assessorId
     ? db.assessors.get(item.assessorId)
     : undefined;
@@ -252,8 +256,9 @@ function ScheduleRow({
     onChanged();
   };
 
-  const cancel = () => {
-    if (!window.confirm(`Cancel the scheduled visit for ${item.clientName}?`)) return;
+  const cancel = () => setConfirming("cancel");
+
+  const doCancel = () => {
     db.schedules.upsert({ ...item, status: "cancelled" });
     onChanged();
   };
@@ -263,9 +268,9 @@ function ScheduleRow({
     onChanged();
   };
 
-  const remove = () => {
-    if (!window.confirm(`Delete the schedule entry for ${item.clientName} on ${fmtDate(item.date)}?`))
-      return;
+  const remove = () => setConfirming("delete");
+
+  const doRemove = () => {
     db.schedules.remove(item.id);
     onChanged();
   };
@@ -413,6 +418,26 @@ function ScheduleRow({
           />
         </Modal>
       )}
+      {confirming === "cancel" && (
+        <ConfirmModal
+          title="Cancel this visit?"
+          body={`Cancel the scheduled visit for ${item.clientName}? It stays in history as cancelled and can be reactivated.`}
+          confirmLabel="Cancel visit"
+          danger
+          onConfirm={doCancel}
+          onClose={() => setConfirming(null)}
+        />
+      )}
+      {confirming === "delete" && (
+        <ConfirmModal
+          title="Delete this schedule entry?"
+          body={`Delete the schedule entry for ${item.clientName} on ${fmtDate(item.date)}? This removes the entry entirely.`}
+          confirmLabel="Delete"
+          danger
+          onConfirm={doRemove}
+          onClose={() => setConfirming(null)}
+        />
+      )}
     </>
   );
 }
@@ -525,7 +550,11 @@ function ScheduleInner() {
   const assessorFilter = searchParams.get("assessor");
   const refresh = () => force((n) => n + 1);
 
-  const items = useMemo(() => db.schedules.list(), []); // re-read each render via refresh
+  // Read per render so refresh() actually shows writes — the old
+  // useMemo([]) froze the list at first mount: a newly added visit
+  // saved fine but didn't appear until a full page reload (found by
+  // the 2026-10-13 interactive audit).
+  const items = db.schedules.list();
   const matchesAssessor = (s: ScheduleItem) =>
     !assessorFilter || s.assessorId === assessorFilter;
   const upcoming = items

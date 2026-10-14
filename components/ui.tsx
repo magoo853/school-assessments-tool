@@ -168,8 +168,7 @@ export function Modal({
   title: string;
   onClose: () => void;
   children: React.ReactNode;
-}) {
-  return (
+}) {  return (
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
       <div
         className="absolute inset-0 bg-black/40"
@@ -190,5 +189,49 @@ export function Modal({
         {children}
       </div>
     </div>
+  );
+}
+
+/**
+ * In-app confirmation for destructive actions. NEVER use
+ * window.confirm(): the native dialog blocks the page's JS thread,
+ * behaves inconsistently in standalone/PWA mode, and can't be
+ * exercised by automated end-to-end checks (three audit runs froze
+ * on it, 2026-10-13).
+ */
+export function ConfirmModal({
+  title,
+  body,
+  confirmLabel = "Confirm",
+  danger = false,
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  body: string;
+  confirmLabel?: string;
+  danger?: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal title={title} onClose={onClose}>
+      <p className="text-sm text-slate-600">{body}</p>
+      <div className="mt-5 flex gap-2">
+        <Btn variant="ghost" className="flex-1" onClick={onClose}>
+          Cancel
+        </Btn>
+        <Btn
+          variant={danger ? "danger" : "primary"}
+          className="flex-1"
+          onClick={() => {
+            onConfirm();
+            onClose();
+          }}
+        >
+          {confirmLabel}
+        </Btn>
+      </div>
+    </Modal>
   );
 }
