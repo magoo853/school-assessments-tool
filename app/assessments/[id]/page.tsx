@@ -42,6 +42,7 @@ import {
   withdrawReview,
 } from "@/lib/review";
 import { getProfile } from "@/lib/profile";
+import { domainViews } from "@/lib/walkthroughFilter";
 import {
   Card,
   PageHeader,
@@ -962,6 +963,7 @@ export default function TakerPage() {
   const [switching, setSwitching] = useState(false);
   const [reassessing, setReassessing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [unansweredOnly, setUnansweredOnly] = useState(false);
 
   useEffect(() => {
     setTick((t) => t + 1);
@@ -1018,6 +1020,7 @@ export default function TakerPage() {
     : 0;
   const completed = assessment.status === "completed";
   const locked = isReviewLocked(assessment);
+  const views = domainViews(template, responses, unansweredOnly);
 
   const saveResponse = (key: string, patch: Partial<ResponseRow>) => {
     const existing = db.responses
@@ -1179,14 +1182,39 @@ export default function TakerPage() {
                 style={{ width: `${pct}%` }}
               />
             </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                aria-pressed={unansweredOnly}
+                onClick={() => setUnansweredOnly((v) => !v)}
+                className={`flex min-h-[44px] items-center rounded-full px-4 text-xs font-semibold transition-colors ${
+                  unansweredOnly
+                    ? "bg-slate-800 text-white"
+                    : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                {unansweredOnly
+                  ? `✓ Unanswered only (${unanswered} left) — show all`
+                  : `Unanswered only (${unanswered} left)`}
+              </button>
+              {unansweredOnly && unanswered === 0 && (
+                <span className="text-xs font-medium text-emerald-700">
+                  All checkpoints answered ✓
+                </span>
+              )}
+            </div>
             <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-              {template.domains.map((d, i) => (
+              {views.map((v, i) => (
                 <a
-                  key={d.id}
-                  href={`#domain-${d.id}`}
+                  key={v.domain.id}
+                  href={`#domain-${v.domain.id}`}
                   className="flex min-h-[44px] shrink-0 items-center rounded-full border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-100"
                 >
-                  {i + 1}. {d.name}
+                  {v.complete ? "✓ " : ""}
+                  {i + 1}. {v.domain.name}
+                  {!v.complete && unansweredOnly
+                    ? ` (${v.unanswered} left)`
+                    : ""}
                 </a>
               ))}
             </div>
@@ -1194,22 +1222,38 @@ export default function TakerPage() {
 
           {/* Domains */}
           <div className="space-y-8">
-            {template.domains.map((d, i) => {
-              const dAnswered = d.checkpoints.filter(
-                (c) => responses[c.key]?.answer != null
-              ).length;
+            {views.map((v, i) => {
+              const d = v.domain;
+              if (unansweredOnly && v.complete) {
+                return (
+                  <section
+                    key={d.id}
+                    id={`domain-${d.id}`}
+                    className="scroll-mt-40"
+                  >
+                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+                      <h2 className="text-sm font-semibold text-emerald-800">
+                        ✓ {i + 1}. {d.name}
+                      </h2>
+                      <Badge tone="green">
+                        {v.answered}/{v.total} answered
+                      </Badge>
+                    </div>
+                  </section>
+                );
+              }
               return (
                 <section key={d.id} id={`domain-${d.id}`} className="scroll-mt-40">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <h2 className="text-lg font-bold">
                       {i + 1}. {d.name}
                     </h2>
-                    <Badge tone={dAnswered === d.checkpoints.length ? "green" : "gray"}>
-                      {dAnswered}/{d.checkpoints.length}
+                    <Badge tone={v.complete ? "green" : "gray"}>
+                      {v.answered}/{v.total}
                     </Badge>
                   </div>
                   <div className="space-y-3">
-                    {d.checkpoints.map((c) => (
+                    {v.checkpoints.map((c) => (
                       <CheckpointCard
                         key={c.key}
                         checkpoint={c}
@@ -1222,6 +1266,23 @@ export default function TakerPage() {
               );
             })}
           </div>
+
+          {unansweredOnly && unanswered === 0 && (
+            <Card className="mt-8 text-center">
+              <p className="text-sm font-semibold text-gray-800">
+                All checkpoints answered ✓
+              </p>
+              <p className="mt-1 text-sm text-gray-500">
+                Nothing is left unanswered in this walkthrough. Show all
+                checkpoints to review or change an answer.
+              </p>
+              <div className="mt-3">
+                <Btn onClick={() => setUnansweredOnly(false)}>
+                  Show all checkpoints
+                </Btn>
+              </div>
+            </Card>
+          )}
 
           <div className="mt-8">
             <Btn onClick={() => setConfirming(true)} className="w-full sm:w-auto">
