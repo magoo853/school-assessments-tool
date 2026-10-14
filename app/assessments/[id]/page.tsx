@@ -52,6 +52,7 @@ import {
   inputCls,
   EmptyState,
   Modal,
+  ConfirmModal,
   Badge,
 } from "@/components/ui";
 
@@ -501,6 +502,7 @@ function ReviewPanel({
 }) {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [decideOpen, setDecideOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [name, setName] = useState("");
   const [reviewerId, setReviewerId] = useState("");
   const [comment, setComment] = useState("");
@@ -593,19 +595,7 @@ function ReviewPanel({
             </div>
             <div className="flex flex-wrap gap-2">
               <Btn onClick={openDecide}>Review &amp; decide</Btn>
-              <Btn
-                variant="ghost"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Withdraw this submission? The assessment unlocks and the review record is cleared."
-                    )
-                  ) {
-                    withdrawReview(assessment.id);
-                    onChanged();
-                  }
-                }}
-              >
+              <Btn variant="ghost" onClick={() => setWithdrawOpen(true)}>
                 Withdraw
               </Btn>
             </div>
@@ -653,6 +643,19 @@ function ReviewPanel({
         </Card>
       )}
 
+      {withdrawOpen && (
+        <ConfirmModal
+          title="Withdraw this submission?"
+          body="The assessment unlocks for editing and the review record is cleared."
+          confirmLabel="Withdraw"
+          danger
+          onConfirm={() => {
+            withdrawReview(assessment.id);
+            onChanged();
+          }}
+          onClose={() => setWithdrawOpen(false)}
+        />
+      )}
       {submitOpen && (
         <Modal title="Submit for review" onClose={() => setSubmitOpen(false)}>
           <div className="space-y-4">

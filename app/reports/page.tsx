@@ -8,6 +8,7 @@ import {
   Btn,
   Badge,
   Card,
+  ConfirmModal,
   EmptyState,
   PageHeader,
   StatusPill,
@@ -91,6 +92,10 @@ export default function ReportsPage() {
   const [tick, setTick] = useState(0);
   const [hubScope, setHubScope] = useState<"completed" | "all">("completed");
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<{
+    file: BackupFile;
+    message: string;
+  } | null>(null);
 
   const assessments = useMemo<Assessment[]>(() => {
     return [...db.assessments.list()].sort((a, b) =>
@@ -681,22 +686,11 @@ export default function ReportsPage() {
                     summary.mode !== mode
                       ? ` Heads up: this is a ${summary.mode.toUpperCase()} backup — it will restore into the ${summary.mode.toUpperCase()} dataset (you're viewing ${mode.toUpperCase()}), leaving your current view unchanged.`
                       : "";
-                  if (
-                    !window.confirm(
-                      `Restore the ${summary.mode.toUpperCase()} backup from ${when} (${summary.entries} data entries)? This REPLACES the current ${summary.mode.toUpperCase()} data on this device.${modeNote}`
-                    )
-                  ) {
-                    return;
-                  }
-                  const result = restoreBackup(parsed as BackupFile);
-                  if (result.skipped.length > 0) {
-                    setBackupMsg(
-                      `Restored ${result.restored} entries into ${result.mode.toUpperCase()}; ${result.skipped.length} invalid entr${result.skipped.length === 1 ? "y was" : "ies were"} skipped. Reloading…`
-                    );
-                    setTimeout(() => window.location.reload(), 1200);
-                  } else {
-                    window.location.reload();
-                  }
+                  // In-app confirm (never window.confirm — see ui.tsx).
+                  setPendingRestore({
+                    file: parsed as BackupFile,
+                    message: `Restore the ${summary.mode.toUpperCase()} backup from ${when} (${summary.entries} data entries)? This REPLACES the current ${summary.mode.toUpperCase()} data on this device.${modeNote}`,
+                  });
                 } catch {
                   setBackupMsg("Couldn't read that file — is it a backup .json?");
                 }
@@ -706,6 +700,26 @@ export default function ReportsPage() {
         </div>
         {backupMsg && (
           <p className="mt-2 text-sm text-red-600">{backupMsg}</p>
+        )}
+        {pendingRestore && (
+          <ConfirmModal
+            title="Restore this backup?"
+            body={pendingRestore.message}
+            confirmLabel="Restore"
+            danger
+            onConfirm={() => {
+              const result = restoreBackup(pendingRestore.file);
+              if (result.skipped.length > 0) {
+                setBackupMsg(
+                  `Restored ${result.restored} entries into ${result.mode.toUpperCase()}; ${result.skipped.length} invalid entr${result.skipped.length === 1 ? "y was" : "ies were"} skipped. Reloading…`
+                );
+                setTimeout(() => window.location.reload(), 1200);
+              } else {
+                window.location.reload();
+              }
+            }}
+            onClose={() => setPendingRestore(null)}
+          />
         )}
       </Card>
     </div>
