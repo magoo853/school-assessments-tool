@@ -26,6 +26,7 @@ import {
   type PolicyDoc,
 } from "./store";
 import { getProfile } from "./profile";
+import { mergedDisclosures } from "./clery";
 
 /** Every school name the app knows in the current mode. */
 export function knownSchools(): string[] {
@@ -106,12 +107,15 @@ export function autofillDisclosures(
   blank: CleryDisclosure[]
 ): AutofillResult {
   const prior = priorAsrFor(institution);
+  // Merge the prior ASR's rows onto the current defs first, so
+  // statements stored under legacy (seed-era) keys still carry.
+  const priorRows = prior ? mergedDisclosures(prior) : [];
   const policies = db.policyDocs.list();
   const filledFrom: string[] = [];
   let carried = 0;
   let fromPolicy = 0;
   const disclosures = blank.map((d) => {
-    const prev = prior?.disclosures.find((x) => x.key === d.key);
+    const prev = priorRows.find((x) => x.key === d.key);
     if (prev && (prev.note.trim() || prev.complete)) {
       carried++;
       return { ...d, note: prev.note, complete: prev.complete };

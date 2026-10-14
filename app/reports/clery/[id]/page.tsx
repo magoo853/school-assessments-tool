@@ -17,6 +17,7 @@ import {
   statsProgress,
   disclosureProgress,
   generateAsrMarkdown,
+  healDisclosures,
 } from "@/lib/clery";
 
 /* ---------- tiny local markdown renderer (headings, bold, lists, tables) ---------- */
@@ -182,10 +183,21 @@ export default function CleryEditorPage() {
     const r = db.cleryReports.get(params.id);
     // Normalize on load: a report restored from an older backup may be
     // missing its stats array — default it instead of crashing the editor.
-    setReport(
-      r ? { ...r, stats: Array.isArray(r.stats) ? r.stats : [] } : null
-    );
-    if (r) setYear(statsWindow(r.reportYear)[2]);
+    // Heal legacy disclosure keys (early seed key set): without this the
+    // disclosure checkboxes render dead — toggles match rows by current
+    // key and find nothing to change.
+    if (r) {
+      const healed = healDisclosures(r);
+      const normalized = {
+        ...r,
+        stats: Array.isArray(r.stats) ? r.stats : [],
+      };
+      if (healed || !Array.isArray(r.stats)) db.cleryReports.upsert(normalized);
+      setReport(normalized);
+      setYear(statsWindow(r.reportYear)[2]);
+    } else {
+      setReport(null);
+    }
     setLoaded(true);
   }, [params.id]);
 

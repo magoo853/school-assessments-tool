@@ -192,6 +192,71 @@ export function disclosureRequired(def: DisclosureDef, reportYear: number): bool
   return !def.requiredFromYear || def.requiredFromYear <= reportYear;
 }
 
+/**
+ * Legacy disclosure keys written by an early seed whose key set
+ * predates the current DISCLOSURES defs. A record carrying them
+ * renders every checkbox unchecked with empty notes, and toggles
+ * map by current key so nothing ever changes — the editor looks
+ * dead (found live by James, 2026-10-13; the seeded Sample
+ * University ASR was the carrier). Only seeded demo records ever
+ * held legacy keys; app-created ASRs always used the current set.
+ */
+export const LEGACY_DISCLOSURE_ALIASES: Record<string, string> = {
+  "facility-security": "securityAccess",
+  "law-enforcement": "lawEnforcement",
+  "timely-warning": "timelyWarning",
+  "emergency-response": "emergencyResponse",
+  "missing-student": "missingStudent",
+  "drug-alcohol": "alcoholDrugs",
+  "vawa-programs": "vawaPolicies",
+  "emergency-notification": "emergencyNotification",
+  hazing: "hazingPolicy",
+};
+
+/**
+ * The report's disclosures merged onto the current DISCLOSURES
+ * defs: exactly one row per def — the stored row with the def's
+ * key, else the row stored under a legacy alias (note + complete
+ * preserved). Stored rows with no current counterpart are dropped.
+ * Pure; callers decide whether to persist the healed rows.
+ */
+export function mergedDisclosures(report: CleryReport): CleryDisclosure[] {
+  const byKey = new Map(report.disclosures.map((d) => [d.key, d]));
+  return DISCLOSURES.map((def) => {
+    const direct = byKey.get(def.key);
+    if (direct) {
+      return { ...direct, label: def.label, requiredFromYear: def.requiredFromYear };
+    }
+    for (const [legacy, current] of Object.entries(LEGACY_DISCLOSURE_ALIASES)) {
+      if (current !== def.key) continue;
+      const aliased = byKey.get(legacy);
+      if (aliased) {
+        return {
+          ...aliased,
+          key: def.key,
+          label: def.label,
+          requiredFromYear: def.requiredFromYear,
+        };
+      }
+    }
+    return {
+      key: def.key,
+      label: def.label,
+      complete: false,
+      note: "",
+      requiredFromYear: def.requiredFromYear,
+    };
+  });
+}
+
+/** Heal a stored report's disclosures in place; true when they changed. */
+export function healDisclosures(report: CleryReport): boolean {
+  const merged = mergedDisclosures(report);
+  const changed = JSON.stringify(merged) !== JSON.stringify(report.disclosures);
+  if (changed) report.disclosures = merged;
+  return changed;
+}
+
 export function blankCleryReport(
   institution: string,
   reportYear: number,
@@ -249,9 +314,9 @@ export function statsProgress(report: CleryReport): { entered: number; total: nu
 
 /** Disclosure completeness against statements required for this report year. */
 export function disclosureProgress(report: CleryReport): { complete: number; required: number } {
-  const byKey = new Map(DISCLOSURES.map((d) => [d.key, d]));
-  const relevant = report.disclosures.filter((d) => {
-    const def = byKey.get(d.key);
+  const rows = mergedDisclosures(report);
+  const relevant = rows.filter((d) => {
+    const def = DISCLOSURES.find((x) => x.key === d.key);
     return def ? disclosureRequired(def, report.reportYear) : true;
   });
   return {

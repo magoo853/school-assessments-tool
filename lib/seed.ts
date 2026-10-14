@@ -7,6 +7,7 @@
  * PROD mode never installs this data.
  */
 import { db, uid, nowIso } from "./store";
+import { DISCLOSURES } from "./clery";
 import type {
   Assessment,
   Answer,
@@ -467,20 +468,48 @@ export function installSeed(): void {
   ];
   clery.stats = stats;
 
-  const disclosures: CleryDisclosure[] = [
-    { key: "crime-stats", label: "Campus crime statistics disclosure", complete: true, note: "Stats entered for 2023–2025." },
-    { key: "facility-security", label: "Security of and access to campus facilities", complete: true, note: "Starter text drafted." },
-    { key: "law-enforcement", label: "Campus law enforcement authority", complete: true, note: "Starter text drafted." },
-    { key: "timely-warning", label: "Timely warning policy", complete: false, note: "Starter text drafted — verify with campus counsel." },
-    { key: "emergency-response", label: "Emergency response and evacuation procedures", complete: false, note: "Starter text drafted — verify with campus counsel." },
-    { key: "missing-student", label: "Missing student notification policy", complete: false, note: "Starter text drafted — verify with campus counsel.", requiredFromYear: 2010 },
-    { key: "drug-alcohol", label: "Drug and alcohol abuse education programs", complete: false, note: "Starter text drafted — verify with campus counsel." },
-    { key: "vawa-programs", label: "Sexual assault, domestic violence, dating violence, and stalking programs", complete: false, note: "Starter text drafted — verify with campus counsel." },
-    { key: "sex-offender", label: "Registered sex offender information", complete: false, note: "Starter text drafted — verify with campus counsel." },
-    { key: "emergency-notification", label: "Emergency notification policy", complete: false, note: "Starter text drafted — verify with campus counsel." },
-    { key: "crime-prevention", label: "Crime prevention programs", complete: false, note: "Starter text drafted — verify with campus counsel." },
-    { key: "hazing", label: "Hazing policy", complete: false, note: "Starter text drafted — verify with campus counsel.", requiredFromYear: 2024 },
-  ];
+  // Built from the current DISCLOSURES defs — an earlier seed
+  // hardcoded a legacy key set that matched nothing in the editor,
+  // leaving the seeded ASR's checkboxes dead. Never hand-write keys.
+  const seedNotes: Record<string, { complete: boolean; note: string }> = {
+    securityAccess: { complete: true, note: "Starter text drafted." },
+    lawEnforcement: { complete: true, note: "Starter text drafted." },
+    timelyWarning: {
+      complete: false,
+      note: "Starter text drafted — verify with campus counsel.",
+    },
+    emergencyResponse: {
+      complete: false,
+      note: "Starter text drafted — verify with campus counsel.",
+    },
+    missingStudent: {
+      complete: false,
+      note: "Starter text drafted — verify with campus counsel.",
+    },
+    alcoholDrugs: {
+      complete: false,
+      note: "Starter text drafted — verify with campus counsel.",
+    },
+    vawaPolicies: {
+      complete: false,
+      note: "Starter text drafted — verify with campus counsel.",
+    },
+    emergencyNotification: {
+      complete: false,
+      note: "Starter text drafted — verify with campus counsel.",
+    },
+    hazingPolicy: {
+      complete: false,
+      note: "Starter text drafted — verify with campus counsel.",
+    },
+  };
+  const disclosures: CleryDisclosure[] = DISCLOSURES.map((d) => ({
+    key: d.key,
+    label: d.label,
+    complete: seedNotes[d.key]?.complete ?? false,
+    note: seedNotes[d.key]?.note ?? "",
+    requiredFromYear: d.requiredFromYear,
+  }));
   clery.disclosures = disclosures;
   db.cleryReports.upsert(clery);
 
