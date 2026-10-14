@@ -116,8 +116,10 @@ export function slug(s: string): string {
 }
 
 function assessorNames(a: Assessment): string {
+  const ids = new Set(a.assessorIds);
+  if (a.leadAssessorId) ids.add(a.leadAssessorId);
   const names = db.assessors
-    .filter((x) => a.assessorIds.includes(x.id))
+    .filter((x) => ids.has(x.id))
     .map((x) => x.name);
   const cover = (a.cover?.assessors ?? "")
     .split(/[,;]/)
@@ -579,7 +581,12 @@ export function buildShareHtml(input: ShareHtmlInput): string {
   const company = branding?.companyName.trim()
     ? escAttr(branding.companyName.trim())
     : "";
-  const logo = branding?.logoDataUrl ?? "";
+  // Only genuine image data URLs may reach an <img src> — branding and
+  // photo data arrive via backups, so validate the scheme instead of
+  // interpolating whatever string a crafted backup carried.
+  const safeImg = (u: string | undefined): string =>
+    typeof u === "string" && /^data:image\//i.test(u) ? u : "";
+  const logo = safeImg(branding?.logoDataUrl);
   const brandRow =
     company || logo
       ? `<div class="brand">${logo ? `<img src="${logo}" alt=""/>` : ""}${company ? `<span>${company}</span>` : ""}</div>`
@@ -592,11 +599,14 @@ export function buildShareHtml(input: ShareHtmlInput): string {
       const photos = photosFor(f.photoIds);
       if (!photos.length) return "";
       const imgs = photos
+        .map((p) => ({ p, src: safeImg(p.dataUrl) }))
+        .filter((x) => x.src)
         .map(
-          (p) =>
-            `<figure><img src="${p.dataUrl}" alt="${escAttr(f.gapText)}"/><figcaption>${escAttr(f.gapText)} — ${riskLabel(f.risk)} risk</figcaption></figure>`
+          ({ p, src }) =>
+            `<figure><img src="${src}" alt="${escAttr(f.gapText)}"/><figcaption>${escAttr(f.gapText)} — ${riskLabel(f.risk)} risk</figcaption></figure>`
         )
         .join("\n");
+      if (!imgs) return "";
       return `<section class="photos"><h3>${escAttr(f.gapText)}</h3><div class="grid">${imgs}</div></section>`;
     })
     .join("\n");

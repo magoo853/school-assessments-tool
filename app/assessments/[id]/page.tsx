@@ -20,7 +20,7 @@ import {
   type AssessmentTemplate,
   type Checkpoint,
 } from "@/lib/templates";
-import { resolveTemplate } from "@/lib/customTemplates";
+import { resolveTemplate, isTemplateMissing } from "@/lib/customTemplates";
 import { deriveFindings } from "@/lib/findings";
 import AiDraftButton, { AiDraftBadge } from "@/components/AiDraftButton";
 import { AssessorCard } from "@/components/AssessorCard";
@@ -470,7 +470,13 @@ function FindingAiDraft({
         })}
         existingDraft={finding.recommendation}
         onInsert={(draft) => {
-          db.findings.upsert({ ...finding, recommendation: draft });
+          // Append below hand-written text, never replace it — the
+          // assessor's own words are the record; the draft is a start.
+          const existing = (finding.recommendation ?? "").trim();
+          const merged = existing
+            ? `${finding.recommendation}\n\n— AI draft —\n${draft}`
+            : draft;
+          db.findings.upsert({ ...finding, recommendation: merged });
           setAiDrafted(true);
           onChanged();
         }}
@@ -993,11 +999,20 @@ export default function TakerPage() {
   }
 
   const total = templateSize(template);
-  const answered = Object.values(responses).filter(
-    (r) => r.answer !== null
+  // Count only responses that belong to the CURRENT template — after a
+  // template switch, answers recorded against the old template's
+  // checkpoints remain stored and used to push progress past 100%
+  // (or negative via unanswered).
+  const templateKeys = new Set(
+    template.domains.flatMap((d) => d.checkpoints.map((c) => c.key))
+  );
+  const answered = Object.entries(responses).filter(
+    ([k, r]) => templateKeys.has(k) && r.answer !== null
   ).length;
-  const unanswered = total - answered;
-  const pct = total ? Math.round((answered / total) * 100) : 0;
+  const unanswered = Math.max(0, total - answered);
+  const pct = total
+    ? Math.min(100, Math.max(0, Math.round((answered / total) * 100)))
+    : 0;
   const completed = assessment.status === "completed";
   const locked = isReviewLocked(assessment);
 
@@ -1077,6 +1092,18 @@ export default function TakerPage() {
         }
       />
       {mode === "prod" && <ProdNotice />}
+      {isTemplateMissing(assessment.templateId) && (
+        <p
+          className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800"
+          role="alert"
+        >
+          ⚠ This assessment's template isn't on this device (it may have been
+          deleted, or the assessment arrived in a backup from another
+          device). It's being shown against the {template.name} as a
+          stand-in — answers recorded against the original template's
+          checkpoints won't appear. Use ⇄ Template to assign the right one.
+        </p>
+      )}
       <ReviewPanel assessment={assessment} onChanged={() => setTick((t) => t + 1)} />
 
       {completed ? (
@@ -1092,7 +1119,7 @@ export default function TakerPage() {
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
               <div>
                 <p className="text-xs text-gray-400">Date</p>
-                <p className="font-medium">{assessment.cover.date || "—"}</p>
+                <p className="font-medium">{assessment.cover?.date || "—"}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-400">Lead assessor</p>
@@ -1102,11 +1129,11 @@ export default function TakerPage() {
               </div>
               <div>
                 <p className="text-xs text-gray-400">Escort</p>
-                <p className="font-medium">{assessment.cover.escort || "—"}</p>
+                <p className="font-medium">{assessment.cover?.escort || "—"}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-400">Weather</p>
-                <p className="font-medium">{assessment.cover.weather || "—"}</p>
+                <p className="font-medium">{assessment.cover?.weather || "—"}</p>
               </div>
             </div>
             {assessment.focusNotes && (
