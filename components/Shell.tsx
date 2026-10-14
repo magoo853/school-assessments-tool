@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getMode, useMode, onModeChange } from "@/lib/mode";
 import {
   db,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/store";
 import { installSeed } from "@/lib/seed";
 import { useProfile, firstNameOf } from "@/lib/profile";
-import { onSwUpdate, applySwUpdate } from "@/lib/swUpdate";
+import { onSwUpdate, applySwUpdate, swUpdateAppliedAgoMs } from "@/lib/swUpdate";
 import GlobalSearch from "@/components/GlobalSearch";
 
 const NAV = [
@@ -116,7 +116,27 @@ function OfflineBadge() {
 function UpdateBanner() {
   const [show, setShow] = useState(false);
   const [dismissed, setDismissed] = useState(false);
-  useEffect(() => onSwUpdate(() => setShow(true)), []);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const unsub = onSwUpdate(() => {
+      // Just applied an update in this session? The post-apply
+      // reload can race a still-waiting worker and re-fire
+      // instantly. Hold the re-prompt for the rest of the grace
+      // window; if the worker is still waiting then, show it.
+      const ago = swUpdateAppliedAgoMs();
+      const GRACE_MS = 5 * 60_000;
+      if (ago !== null && ago < GRACE_MS) {
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => setShow(true), GRACE_MS - ago);
+        return;
+      }
+      setShow(true);
+    });
+    return () => {
+      unsub();
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, []);
   if (!show || dismissed) return null;
   return (
     <div

@@ -397,6 +397,15 @@ export default function ReportsPage() {
                     <span className="font-normal text-slate-500">
                       — {a.campus}
                     </span>
+                    {/* Disambiguator: two assessments for one school
+                        (different templates/dates) otherwise render
+                        identical rows (audit #3 observation). */}
+                    <span className="text-xs font-normal text-slate-400">
+                      {resolveTemplate(a.templateId).name} ·{" "}
+                      {a.completedAt
+                        ? `Completed ${a.completedAt.slice(0, 10)}`
+                        : `In progress · started ${a.createdAt.slice(0, 10)}`}
+                    </span>
                     {a.review?.state === "approved" && (
                       <Badge tone="green">✓ Approved</Badge>
                     )}
@@ -710,8 +719,16 @@ export default function ReportsPage() {
             onConfirm={() => {
               const result = restoreBackup(pendingRestore.file);
               if (result.skipped.length > 0) {
+                // Name the skipped tables in plain words — a bare
+                // count left users guessing which data didn't make
+                // it (audit addendum Low, 2026-10-13).
+                const names = result.skipped
+                  .map((k) =>
+                    k.replace(/^sat_(demo|prod)_/, "").replace(/_/g, " ")
+                  )
+                  .join(", ");
                 setBackupMsg(
-                  `Restored ${result.restored} entries into ${result.mode.toUpperCase()}; ${result.skipped.length} invalid entr${result.skipped.length === 1 ? "y was" : "ies were"} skipped. Reloading…`
+                  `Restored ${result.restored} entries into ${result.mode.toUpperCase()}; ${result.skipped.length} invalid entr${result.skipped.length === 1 ? "y was" : "ies were"} skipped (${names}). Reloading…`
                 );
                 setTimeout(() => window.location.reload(), 1200);
               } else {

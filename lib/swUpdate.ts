@@ -55,5 +55,38 @@ export function onSwUpdate(cb: () => void): () => void {
 
 /** Ask the waiting worker to take over; the page reloads on activation. */
 export function applySwUpdate(): void {
+  markSwUpdateApplied();
   pendingWorker?.postMessage({ type: "SKIP_WAITING" });
+}
+
+const APPLIED_KEY = "sat_sw_update_applied_at";
+
+/**
+ * Stamp that the user just applied an update in this tab session.
+ * The reload that follows an apply can race a still-waiting worker
+ * (e.g. another tab holding the old worker), re-firing the banner
+ * instantly — which reads as "I already updated and it's asking
+ * again" (audit #3 observation). The banner suppresses re-prompts
+ * for a few minutes after an apply; a worker still waiting after
+ * that window prompts again, so a genuinely new update is never
+ * swallowed — and a fresh session always prompts immediately.
+ */
+export function markSwUpdateApplied(): void {
+  try {
+    sessionStorage.setItem(APPLIED_KEY, String(Date.now()));
+  } catch {
+    /* session storage unavailable — banner behaves as before */
+  }
+}
+
+/** Milliseconds since the last in-session update apply, or null. */
+export function swUpdateAppliedAgoMs(): number | null {
+  try {
+    const v = sessionStorage.getItem(APPLIED_KEY);
+    if (!v) return null;
+    const t = Number(v);
+    return Number.isFinite(t) ? Date.now() - t : null;
+  } catch {
+    return null;
+  }
 }

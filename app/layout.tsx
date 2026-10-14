@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   title: "School Assessments Tool",
   description: "Standalone school safety assessment app for assessors",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/apple-icon",
+  },
   appleWebApp: {
     capable: true,
     title: "Assessments",
