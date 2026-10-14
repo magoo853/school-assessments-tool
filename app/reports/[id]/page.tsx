@@ -11,6 +11,7 @@ import ProdNotice from "@/components/ProdNotice";
 import { REPORT_LABELS, download, slug, buildShareHtml } from "@/lib/reports";
 import { resolveTemplate } from "@/lib/customTemplates";
 import { renderMarkdown } from "@/components/MarkdownView";
+import { photosFor } from "@/lib/photos";
 import AiDraftButton, { AiDraftBadge } from "@/components/AiDraftButton";
 import type { DraftSection } from "@/lib/draft";
 
@@ -190,7 +191,51 @@ export default function ReportViewPage() {
       </div>
 
       {tab === "preview" ? (
-        <Card className="prose-none">{renderMarkdown(draft)}</Card>
+        <>
+          <Card className="prose-none">{renderMarkdown(draft)}</Card>
+          {/* Photo evidence appendix — the print view and shared HTML
+              include it, so the preview must too (audit #2 found the
+              preview silently omitting photos). */}
+          {(() => {
+            if (!doc || doc.assessmentId.startsWith("group:")) return null;
+            const withPhotos = db.findings
+              .filter(
+                (f) =>
+                  f.assessmentId === doc.assessmentId &&
+                  (f.photoIds?.length ?? 0) > 0
+              )
+              .map((f) => ({ f, photos: photosFor(f.photoIds) }))
+              .filter((x) => x.photos.length > 0);
+            if (!withPhotos.length) return null;
+            return (
+              <Card className="mt-4">
+                <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                  Photo evidence
+                </h3>
+                <div className="mt-3 space-y-5">
+                  {withPhotos.map(({ f, photos }) => (
+                    <div key={f.id}>
+                      <p className="text-sm font-medium text-slate-800">
+                        {f.gapText}
+                      </p>
+                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {photos.map((p) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            key={p.id}
+                            src={p.dataUrl}
+                            alt={f.gapText}
+                            className="aspect-[4/3] w-full rounded-lg object-cover"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })()}
+        </>
       ) : (
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">

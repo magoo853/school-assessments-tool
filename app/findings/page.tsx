@@ -235,14 +235,27 @@ function FindingsInner() {
             >
               📥 Export CSV ({filtered.length})
             </button>
-            <button
-              type="button"
-              disabled={filtered.length === 0}
-              onClick={() => window.print()}
-              className={exportBtnCls}
-            >
-              🖨 Print
-            </button>
+            {filtered.length === 0 ? (
+              <button type="button" disabled className={exportBtnCls}>
+                🖨 Print
+              </button>
+            ) : (
+              <Link
+                href={(() => {
+                  const p = new URLSearchParams();
+                  if (riskFilter !== "all") p.set("risk", riskFilter);
+                  if (clientFilter !== "all") p.set("client", clientFilter);
+                  if (domainFilter !== "all") p.set("domain", domainFilter);
+                  if (caFilter !== "all") p.set("ca", caFilter);
+                  if (query.trim()) p.set("q", query.trim());
+                  const qs = p.toString();
+                  return qs ? `/findings/print?${qs}` : "/findings/print";
+                })()}
+                className={exportBtnCls}
+              >
+                🖨 Print
+              </Link>
+            )}
           </>
         }
       />
