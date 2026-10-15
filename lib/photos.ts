@@ -1,5 +1,7 @@
 /**
  * Photo evidence storage — IndexedDB era (scale build, 2026-10-14).
+ * (Build-skip probe, 2026-10-15: this comment-only code commit must
+ * trigger a full Vercel build — see ignoreCommand in vercel.json.)
  *
  * Photos used to live in localStorage (`sat_<mode>_photos`) as
  * compressed JPEG data URLs. localStorage caps around 5–10 MB per
