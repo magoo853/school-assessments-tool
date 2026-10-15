@@ -25,6 +25,7 @@ import { deriveFindings } from "@/lib/findings";
 import AiDraftButton, { AiDraftBadge } from "@/components/AiDraftButton";
 import { AssessorCard } from "@/components/AssessorCard";
 import { PhotoPicker } from "@/components/PhotoPicker";
+import { photosReady } from "@/lib/photos";
 import { useMode } from "@/lib/mode";
 import ProdNotice from "@/components/ProdNotice";
 import FslWizard from "@/components/FslWizard";
@@ -969,6 +970,16 @@ export default function TakerPage() {
 
   useEffect(() => {
     setTick((t) => t + 1);
+    // Photos hydrate asynchronously from IndexedDB — re-render once
+    // they're in memory so checkpoint cards show their thumbnails
+    // even when first paint beat hydration.
+    let live = true;
+    photosReady().then(() => {
+      if (live) setTick((t) => t + 1);
+    });
+    return () => {
+      live = false;
+    };
   }, []);
 
   const assessment = db.assessments.get(id);

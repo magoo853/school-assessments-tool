@@ -180,7 +180,16 @@ function hydrate(mode: Mode): Promise<void> {
   if (st.ready) return st.ready;
   st.ready = (async () => {
     ensureMigration();
-    const legacy = readLsPhotos(mode);
+    // After a verified migration the legacy LS table stays in place
+    // as a COLD COPY (see below) — never merge it again, or photos
+    // deleted from IndexedDB would resurrect from it.
+    let alreadyMigrated = false;
+    try {
+      alreadyMigrated = !!window.localStorage.getItem(lsKey(mode) + "_idb");
+    } catch {
+      alreadyMigrated = false;
+    }
+    const legacy = alreadyMigrated ? [] : readLsPhotos(mode);
     const db = await openDb();
     if (db) {
       st.backend = "idb";
@@ -207,12 +216,18 @@ function hydrate(mode: Mode): Promise<void> {
         }
         const afterIds = new Set(all.map((d) => d.id));
         if (legacy.every((d) => afterIds.has(d.id))) {
-          // Every legacy photo is verified in IndexedDB — reclaim
-          // the localStorage quota.
+          // Every legacy photo is verified in IndexedDB. Do NOT
+          // delete the LS table: an older cached shell still running
+          // in an update window reads photos from localStorage and
+          // would go blind. Keep it as a cold copy and mark the
+          // migration done so this shell never merges it again.
           try {
-            window.localStorage.removeItem(lsKey(mode));
+            window.localStorage.setItem(
+              lsKey(mode) + "_idb",
+              new Date().toISOString(),
+            );
           } catch {
-            /* removal is best-effort */
+            /* marker is best-effort */
           }
         }
       }

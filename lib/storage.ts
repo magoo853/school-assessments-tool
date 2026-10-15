@@ -177,7 +177,18 @@ export async function getStorageUsage(): Promise<UsageSummary> {
   } catch {
     quota = null;
   }
-  const summary = summarizeUsage(readEntries(), quota);
+  // A migrated mode keeps its legacy LS photos table as a cold copy
+  // (lib/photos.ts) — exclude it here so the same photos aren't
+  // counted twice; the IndexedDB line below is the real figure.
+  const entries = readEntries().filter(([k]) => {
+    if (!k.endsWith("_photos")) return true;
+    try {
+      return !window.localStorage.getItem(k + "_idb");
+    } catch {
+      return true;
+    }
+  });
+  const summary = summarizeUsage(entries, quota);
   // Photos live in IndexedDB now (scale build, 2026-10-14): count
   // them from the photo store so the meter stays honest about total
   // on-device data. They no longer press on the localStorage cap, so
