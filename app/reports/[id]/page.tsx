@@ -11,7 +11,7 @@ import ProdNotice from "@/components/ProdNotice";
 import { REPORT_LABELS, download, slug, buildShareHtml, buildCheckpointIndex } from "@/lib/reports";
 import { resolveTemplate } from "@/lib/customTemplates";
 import { renderMarkdown } from "@/components/MarkdownView";
-import { listPhotos } from "@/lib/photos";
+import { listPhotos, photosReady } from "@/lib/photos";
 import { buildPhotoLog } from "@/lib/photoEvidence";
 import { FindingEvidenceBlock, PhotoLog } from "@/components/PhotoEvidence";
 import AiDraftButton, { AiDraftBadge } from "@/components/AiDraftButton";
@@ -63,8 +63,9 @@ export default function ReportViewPage() {
     }
   };
 
-  const shareHtml = () => {
+  const shareHtml = async () => {
     if (!doc) return;
+    await photosReady();
     const aid = doc.assessmentId;
     const a = db.assessments.get(aid);
     if (!a) {

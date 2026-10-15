@@ -17,7 +17,7 @@ import {
   type ResponseRow,
 } from "@/lib/store";
 import { resolveTemplate } from "@/lib/customTemplates";
-import { listPhotos } from "@/lib/photos";
+import { listPhotos, photosReady } from "@/lib/photos";
 import { REPORT_LABELS, buildCheckpointIndex } from "@/lib/reports";
 import { buildPhotoLog } from "@/lib/photoEvidence";
 import {
@@ -43,25 +43,29 @@ export default function ReportPrintPage() {
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
 
   useEffect(() => {
-    const d = db.reports.get(id) ?? null;
-    setDoc(d);
-    if (d) {
-      const a = db.assessments.get(d.assessmentId) ?? null;
-      setAssessment(a);
-      setFindings(
-        db.findings
-          .filter((f) => f.assessmentId === d.assessmentId)
-          .sort((x, y) => {
-            const rank: Record<string, number> = { high: 0, moderate: 1, low: 2 };
-            return (rank[x.risk] ?? 3) - (rank[y.risk] ?? 3);
-          })
-      );
-      setResponses(
-        db.responses.filter((r) => r.assessmentId === d.assessmentId)
-      );
-      setEquipment(db.equipment.filter((e) => e.assessmentId === d.assessmentId));
-    }
-    setLoaded(true);
+    // Photos persist in IndexedDB behind a memory cache — wait for
+    // hydration so the evidence sections render complete first time.
+    void photosReady().then(() => {
+      const d = db.reports.get(id) ?? null;
+      setDoc(d);
+      if (d) {
+        const a = db.assessments.get(d.assessmentId) ?? null;
+        setAssessment(a);
+        setFindings(
+          db.findings
+            .filter((f) => f.assessmentId === d.assessmentId)
+            .sort((x, y) => {
+              const rank: Record<string, number> = { high: 0, moderate: 1, low: 2 };
+              return (rank[x.risk] ?? 3) - (rank[y.risk] ?? 3);
+            })
+        );
+        setResponses(
+          db.responses.filter((r) => r.assessmentId === d.assessmentId)
+        );
+        setEquipment(db.equipment.filter((e) => e.assessmentId === d.assessmentId));
+      }
+      setLoaded(true);
+    });
   }, [id]);
 
   if (!loaded) return null;

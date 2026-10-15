@@ -20,7 +20,7 @@ import { caStatusOf, isCaOverdue } from "@/lib/ca";
 import { caPrintLine, exportCounts } from "@/lib/findingsExport";
 import { getCheckpoint } from "@/lib/templates";
 import { resolveTemplate } from "@/lib/customTemplates";
-import { photosFor } from "@/lib/photos";
+import { photosFor, photosReady } from "@/lib/photos";
 import { splitByTiming } from "@/lib/photoEvidence";
 import { PostBadge } from "@/components/PhotoEvidence";
 import { useMode } from "@/lib/mode";
@@ -68,7 +68,9 @@ function PrintInner() {
   const [rows, setRows] = useState<FindingRow[] | null>(null);
 
   useEffect(() => {
-    setRows(loadRows());
+    // Rows render photos from the IndexedDB-backed cache — load
+    // after hydration so thumbnails are present on first paint.
+    void photosReady().then(() => setRows(loadRows()));
   }, [mode]);
 
   if (!rows) {

@@ -11,6 +11,7 @@ import {
   STORAGE_ERROR_EVENT,
 } from "@/lib/store";
 import { installSeed } from "@/lib/seed";
+import { photosReady } from "@/lib/photos";
 import { useProfile, firstNameOf } from "@/lib/profile";
 import { onSwUpdate, applySwUpdate, swUpdateAppliedAgoMs } from "@/lib/swUpdate";
 import GlobalSearch from "@/components/GlobalSearch";
@@ -244,6 +245,22 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Photo store hydration: photos persist in IndexedDB and are read
+  // synchronously from an in-memory cache (lib/photos.ts). Hydrate on
+  // mount and on mode switch, then bump a render epoch so pages that
+  // read photos during render re-read with the cache warm. (<main>
+  // remounts on mode switch anyway; this covers the first load.)
+  const [photoEpoch, setPhotoEpoch] = useState(0);
+  useEffect(() => {
+    let live = true;
+    photosReady().then(() => {
+      if (live) setPhotoEpoch((n) => n + 1);
+    });
+    return () => {
+      live = false;
+    };
+  }, [mode]);
+
   // A mode switch in ANOTHER tab reloads this one (its chrome and page
   // state would otherwise describe the old mode's dataset).
   useEffect(() => {
@@ -256,7 +273,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen" data-photo-epoch={photoEpoch}>
       <UpdateBanner />
       <StorageErrorBanner />
       {/* Desktop sidebar — dark chrome (hidden in print) */}

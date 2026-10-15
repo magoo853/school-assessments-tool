@@ -21,7 +21,7 @@ import {
   photosByteSize,
   type UsageSummary,
 } from "@/lib/storage";
-import type { PhotoDoc } from "@/lib/photos";
+import { photosReady, type PhotoDoc } from "@/lib/photos";
 import { getCorruptKeys } from "@/lib/store";
 import {
   getEquipmentCleanupPlan,
@@ -54,6 +54,7 @@ export default function IntegrationsPage() {
   const [equipMsg, setEquipMsg] = useState<string | null>(null);
 
   const loadStorage = async () => {
+    await photosReady();
     setUsage(await getStorageUsage());
     setCorruptKeys(getCorruptKeys());
     setOrphans(getOrphanedPhotos());
