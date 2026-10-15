@@ -45,3 +45,9 @@ via Row Level Security.
   reads at the database layer, not just in app code.
 - Before real school data is sent to the AI drafting endpoint, re-check
   the LLM vendor's data terms (already flagged in the product notes).
+
+## Build note (2026-10-15)
+- Vercel skips builds for commits that touch only documentation,
+  markdown, or meta files (see `ignoreCommand` in vercel.json). Docs
+  in this repo can therefore lag the live build by design; the code
+  is the source of truth for what is deployed.
