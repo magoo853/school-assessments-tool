@@ -177,7 +177,23 @@ export async function getStorageUsage(): Promise<UsageSummary> {
   } catch {
     quota = null;
   }
-  return summarizeUsage(readEntries(), quota);
+  const summary = summarizeUsage(readEntries(), quota);
+  // Photos live in IndexedDB now (scale build, 2026-10-14): count
+  // them from the photo store so the meter stays honest about total
+  // on-device data. They no longer press on the localStorage cap, so
+  // `fraction` keeps measuring localStorage-resident bytes only —
+  // that is still the ceiling that can bite the remaining tables.
+  const photos = listPhotos();
+  if (photos.length) {
+    const pb = photosByteSize(photos);
+    summary.photosBytes = pb;
+    summary.totalBytes += pb;
+    summary.photosShare =
+      summary.totalBytes > 0 ? pb / summary.totalBytes : 0;
+    summary.byKey.push({ key: "photos (IndexedDB)", bytes: pb });
+    summary.byKey.sort((a, b) => b.bytes - a.bytes);
+  }
+  return summary;
 }
 
 export function getOrphanedPhotos(): PhotoDoc[] {

@@ -20,6 +20,12 @@
 
 import { getMode, type Mode } from "./mode";
 import { TABLE_BASES, db } from "./store";
+import {
+  listPhotos,
+  photosReady,
+  replacePhotosForMode,
+  type PhotoDoc,
+} from "./photos";
 
 export interface BackupFile {
   format: "sat-backup";
@@ -43,7 +49,9 @@ export function backupMode(file: BackupFile): Mode {
   return file.mode === "prod" ? "prod" : "demo";
 }
 
-export function buildBackup(mode: Mode = getMode()): BackupFile {
+export async function buildBackup(
+  mode: Mode = getMode()
+): Promise<BackupFile> {
   const data: Record<string, string> = {};
   const prefix = `sat_${mode}_`;
   for (let i = 0; i < window.localStorage.length; i++) {
@@ -52,6 +60,15 @@ export function buildBackup(mode: Mode = getMode()): BackupFile {
     if (!key.startsWith(prefix) && !SINGLETON_KEYS.has(key)) continue;
     const value = window.localStorage.getItem(key);
     if (value != null) data[key] = value;
+  }
+  // Photos live in IndexedDB now (scale build, 2026-10-14) — inject
+  // them under their historical key so the file format is unchanged
+  // and older backups/new backups stay cross-compatible. (Only the
+  // active mode's photo store is loaded; buildBackup is an
+  // active-mode operation in every caller.)
+  if (mode === getMode()) {
+    await photosReady();
+    data[`sat_${mode}_photos`] = JSON.stringify(listPhotos());
   }
   return {
     format: "sat-backup",
@@ -144,12 +161,18 @@ function isValidValue(targetKey: string, value: string): boolean {
 
 /**
  * Replace the FILE's mode keyspace with the backup's contents. The
- * other mode's data and the device's AI key are untouched.
+ * other mode's data and the device's AI key are untouched. The
+ * photos entry is routed to the IndexedDB photo store (a true
+ * replace of that mode's photo set — absent entry = empty set,
+ * matching the keyspace-clear semantics for every other table).
  */
-export function restoreBackup(file: BackupFile): RestoreResult {
+export async function restoreBackup(
+  file: BackupFile
+): Promise<RestoreResult> {
   const mode = backupMode(file);
   const ls = window.localStorage;
   const prefix = `sat_${mode}_`;
+  const photosTarget = `sat_${mode}_photos`;
 
   // Clear the target keyspace first so the restore is a true replace.
   const existing: string[] = [];
@@ -161,6 +184,8 @@ export function restoreBackup(file: BackupFile): RestoreResult {
 
   let restored = 0;
   const skipped: string[] = [];
+  let photoDocs: unknown[] | null = null;
+  let photosKeySeen: string | null = null;
   for (const [key, value] of Object.entries(file.data)) {
     if (EXCLUDED_KEYS.has(key)) continue;
     const target = targetKeyFor(key, mode);
@@ -168,8 +193,23 @@ export function restoreBackup(file: BackupFile): RestoreResult {
       skipped.push(key);
       continue;
     }
+    if (target === photosTarget) {
+      // Validated as a JSON array by isValidValue; element shape is
+      // checked inside replacePhotosForMode.
+      photoDocs = JSON.parse(value) as unknown[];
+      photosKeySeen = key;
+      continue;
+    }
     ls.setItem(target, value);
     restored++;
+  }
+  const photosOk = await replacePhotosForMode(
+    mode,
+    (photoDocs ?? []) as PhotoDoc[]
+  );
+  if (photosKeySeen) {
+    if (photosOk) restored++;
+    else skipped.push(photosKeySeen);
   }
   // Tables cache parsed rows — force re-parse after direct writes.
   Object.values(db).forEach((t) => t.invalidate());

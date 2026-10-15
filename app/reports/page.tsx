@@ -661,10 +661,10 @@ export default function ReportsPage() {
           <Btn
             variant="ghost"
             className="justify-start"
-            onClick={() =>
+            onClick={async () =>
               download(
                 backupFilename(),
-                JSON.stringify(buildBackup(), null, 2),
+                JSON.stringify(await buildBackup(), null, 2),
                 "application/json;charset=utf-8"
               )
             }
@@ -716,8 +716,8 @@ export default function ReportsPage() {
             body={pendingRestore.message}
             confirmLabel="Restore"
             danger
-            onConfirm={() => {
-              const result = restoreBackup(pendingRestore.file);
+            onConfirm={async () => {
+              const result = await restoreBackup(pendingRestore.file);
               if (result.skipped.length > 0) {
                 // Name the skipped tables in plain words — a bare
                 // count left users guessing which data didn't make
