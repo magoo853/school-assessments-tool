@@ -6,6 +6,9 @@
  *   transcribed from the 13-domain field walkthrough checklist.
  * - fl-fssat / la: state-style templates modeled on the Florida FSSAT
  *   and Louisiana school safety evaluations (four domains each).
+ * - pa / tx / va / ky / tn: state-program templates in
+ *   lib/templates-states.ts, built from each state's published
+ *   assessment criteria (see that file's header for provenance).
  *
  * Every checkpoint carries an explicit negative `gap` statement so
  * findings derived from a "no" answer never echo the positive
@@ -37,6 +40,8 @@ export interface AssessmentTemplate {
   description: string;
   domains: TemplateDomain[];
 }
+
+import { STATE_TEMPLATES } from "./templates-states";
 
 export const DEFAULT_TEMPLATE_ID = "isc42";
 
@@ -741,6 +746,7 @@ export const TEMPLATES: AssessmentTemplate[] = [
     description: "Modeled on the Louisiana school safety evaluation: four domains covering physical security, crime & violence prevention, threat assessment & intervention, and emergency preparedness & training.",
     domains: LA_DOMAINS,
   },
+  ...STATE_TEMPLATES,
 ];
 
 /** Look up a template by id; falls back to the default template. */
