@@ -302,7 +302,13 @@ function TemplateBuilder({
   );
 }
 
-function BuiltinCard({ t }: { t: AssessmentTemplate }) {
+function BuiltinCard({
+  t,
+  onView,
+}: {
+  t: AssessmentTemplate;
+  onView: () => void;
+}) {
   return (
     <Card>
       <div className="flex items-start justify-between gap-3">
@@ -318,7 +324,94 @@ function BuiltinCard({ t }: { t: AssessmentTemplate }) {
       <p className="mt-1 text-xs text-slate-500">
         {t.domains.map((d) => d.name).join(" · ")}
       </p>
+      <div className="mt-3">
+        <Btn variant="ghost" onClick={onView} className="!min-h-[44px] w-full">
+          👁 View template
+        </Btn>
+      </div>
     </Card>
+  );
+}
+
+function TemplateViewer({
+  t,
+  custom,
+  onBack,
+}: {
+  t: AssessmentTemplate;
+  custom: boolean;
+  onBack: () => void;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onBack}
+        className="mb-3 inline-flex min-h-[44px] items-center gap-1 text-sm font-medium text-violet-700 hover:underline print:hidden"
+      >
+        ← Back to templates
+      </button>
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold tracking-tight text-slate-900">
+            {t.name}
+          </h2>
+          {t.description && (
+            <p className="mt-1 text-sm text-slate-500">{t.description}</p>
+          )}
+          <p className="mt-2 text-xs text-slate-400">
+            {t.domains.length} domains · {templateSize(t)} checkpoints ·
+            read-only
+          </p>
+        </div>
+        <Badge tone={custom ? "cyan" : "violet"}>
+          {custom ? "Custom" : "System"}
+        </Badge>
+      </div>
+      <div className="space-y-4">
+        {t.domains.map((d, di) => (
+          <Card key={d.id}>
+            <p className="font-semibold text-slate-900">
+              {di + 1}. {d.name}{" "}
+              <span className="text-xs font-normal text-slate-400">
+                ({d.checkpoints.length} checkpoints)
+              </span>
+            </p>
+            <div className="mt-3 space-y-3">
+              {d.checkpoints.map((c) => (
+                <div
+                  key={c.key}
+                  className="rounded-xl border border-slate-200 bg-slate-50/60 p-3"
+                >
+                  <p className="text-sm text-slate-800">
+                    <span className="mr-2 text-xs font-bold text-violet-700">
+                      {c.num}
+                    </span>
+                    {c.text}
+                  </p>
+                  {c.gap && (
+                    <p className="mt-1.5 text-xs text-slate-500">
+                      <span className="font-semibold text-rose-600">
+                        If NO:
+                      </span>{" "}
+                      {c.gap}
+                    </p>
+                  )}
+                  {c.rec && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      <span className="font-semibold text-emerald-700">
+                        Recommendation:
+                      </span>{" "}
+                      {c.rec}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -326,6 +419,10 @@ export default function TemplatesPage() {
   const [mode] = useMode();
   const [tick, setTick] = useState(0);
   const [editing, setEditing] = useState<CustomTemplate | null>(null);
+  const [viewing, setViewing] = useState<{
+    t: AssessmentTemplate;
+    custom: boolean;
+  } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<CustomTemplate | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -367,7 +464,13 @@ export default function TemplatesPage() {
       />
       {mode === "prod" && <ProdNotice />}
 
-      {editing ? (
+      {viewing ? (
+        <TemplateViewer
+          t={viewing.t}
+          custom={viewing.custom}
+          onBack={() => setViewing(null)}
+        />
+      ) : editing ? (
         <TemplateBuilder
           initial={editing}
           onClose={() => {
@@ -389,7 +492,11 @@ export default function TemplatesPage() {
             </h2>
             <div className="grid gap-4 md:grid-cols-2">
               {TEMPLATES.map((t) => (
-                <BuiltinCard key={t.id} t={t} />
+                <BuiltinCard
+                  key={t.id}
+                  t={t}
+                  onView={() => setViewing({ t, custom: false })}
+                />
               ))}
             </div>
           </section>
@@ -428,6 +535,13 @@ export default function TemplatesPage() {
                         {templateInUse(t.id) ? " · in use" : ""}
                       </p>
                       <div className="mt-3 flex gap-2">
+                        <Btn
+                          variant="ghost"
+                          onClick={() => setViewing({ t, custom: true })}
+                          className="!min-h-[44px] flex-1"
+                        >
+                          👁 View
+                        </Btn>
                         <Btn
                           variant="ghost"
                           onClick={() => {
