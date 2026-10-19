@@ -55,6 +55,23 @@ const KIND_DESCS: Record<ReportKind, string> = {
   recommendations: "Prioritized recommendations plus equipment needs grouped by priority.",
 };
 
+type ReportsView =
+  | "generate"
+  | "reports"
+  | "combined"
+  | "clery"
+  | "exports"
+  | "backup";
+
+const REPORT_VIEWS: { id: ReportsView; label: string }[] = [
+  { id: "generate", label: "Generate" },
+  { id: "reports", label: "Your Reports" },
+  { id: "combined", label: "Combined" },
+  { id: "clery", label: "Clery ASR" },
+  { id: "exports", label: "Exports" },
+  { id: "backup", label: "Backup & Restore" },
+];
+
 /** Each school gets a stable color (hashed from its name) so it's easy
  *  to follow across the picker, the generate bar, and the report list. */
 const SCHOOL_COLORS = [
@@ -89,6 +106,7 @@ function fmtUpdated(iso: string): string {
 
 export default function ReportsPage() {
   const [mode] = useMode();
+  const [activeView, setActiveView] = useState<ReportsView>("generate");
   const [tick, setTick] = useState(0);
   const [hubScope, setHubScope] = useState<"completed" | "all">("completed");
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
@@ -194,7 +212,7 @@ export default function ReportsPage() {
       `Combined ${REPORT_LABELS[batchKind]} — ${selectedAssessments.length} schools`
     );
     setNotice(
-      `Combined ${REPORT_LABELS[batchKind]} generated for ${selectedAssessments.length} schools — see Combined reports below.`
+      `Combined ${REPORT_LABELS[batchKind]} generated for ${selectedAssessments.length} schools — see the Combined view.`
     );
     setTick((t) => t + 1);
   };
@@ -220,8 +238,33 @@ export default function ReportsPage() {
       />
       {mode === "prod" && <ProdNotice />}
 
+      {/* One selected tool at a time — the rest are not rendered. */}
+      <div
+        className="flex flex-wrap gap-2"
+        role="tablist"
+        aria-label="Reports and exports view"
+      >
+        {REPORT_VIEWS.map((view) => (
+          <button
+            key={view.id}
+            type="button"
+            role="tab"
+            aria-selected={activeView === view.id}
+            onClick={() => setActiveView(view.id)}
+            className={`min-h-[44px] flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+              activeView === view.id
+                ? "btn-brand"
+                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            {view.label}
+          </button>
+        ))}
+      </div>
+
       {/* Step 1 — pick assessments (each school has its own color) */}
-      {assessments.length === 0 ? (
+      {activeView === "generate" &&
+      (assessments.length === 0 ? (
         <EmptyState
           title="No assessments yet"
           body="Reports are generated per assessment. Complete a walkthrough first, then generate its reports here."
@@ -316,10 +359,10 @@ export default function ReportsPage() {
             })}
           </ul>
         </Card>
-      )}
+      ))}
 
       {/* Generate bar — sticks once anything is selected */}
-      {selected.size > 0 && (
+      {activeView === "generate" && selected.size > 0 && (
         <div className="sticky top-16 z-20 -mx-4 bg-[#EEF1F8]/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
           <div className="flex flex-wrap items-center gap-2">
             <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
@@ -376,7 +419,13 @@ export default function ReportsPage() {
       )}
 
       {/* Step 2 — your reports, grouped by school in the same colors */}
-      {assessments.length > 0 && (
+      {activeView === "reports" && assessments.length === 0 && (
+        <EmptyState
+          title="No reports yet"
+          body="Reports appear here after you generate them from an assessment in the Generate view."
+        />
+      )}
+      {activeView === "reports" && assessments.length > 0 && (
         <Card>
           <h2 className="font-semibold">2 · Your reports</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -467,7 +516,13 @@ export default function ReportsPage() {
       )}
 
       {/* Combined (group) reports */}
-      {groupDocs.length > 0 && (
+      {activeView === "combined" && groupDocs.length === 0 && (
+        <EmptyState
+          title="No combined reports yet"
+          body="Select two or more assessments in the Generate view, choose Findings or Recommendations, then generate a combined report."
+        />
+      )}
+      {activeView === "combined" && groupDocs.length > 0 && (
         <Card>
           <h2 className="font-semibold">🧩 Combined reports</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -512,10 +567,11 @@ export default function ReportsPage() {
       )}
 
       {/* Clery builder link (owned by another slice) */}
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="font-semibold">Clery Act ASR Builder</h2>
+      {activeView === "clery" && (
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">Clery Act ASR Builder</h2>
             <p className="mt-1 text-sm text-gray-500">
               Build the Annual Security Report: 3 years of crime statistics by
               geography plus the required policy disclosure statements.
@@ -525,14 +581,17 @@ export default function ReportsPage() {
             href="/reports/clery"
             className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            Open Clery builder →
-          </Link>
-        </div>
-      </Card>
+              Open Clery builder →
+            </Link>
+          </div>
+        </Card>
+      )}
 
-      {/* CSV exports */}
-      <Card>
-        <h2 className="font-semibold">CSV Exports</h2>
+      {/* CSV exports and the Hub exchange live together under Exports. */}
+      {activeView === "exports" && (
+        <>
+          <Card>
+            <h2 className="font-semibold">CSV Exports</h2>
         <p className="mt-1 text-sm text-gray-500">
           Raw data exports for spreadsheets. Gap statements export as recorded
           — negative gap wording, never criterion text.
@@ -642,13 +701,16 @@ export default function ReportsPage() {
               device do not transfer in the v1 export — the Hub receives the
               findings and notes without the photos.
             </p>
-          ) : null;
-        })()}
-      </Card>
+            ) : null;
+          })()}
+          </Card>
+        </>
+      )}
 
       {/* Full backup & restore */}
-      <Card>
-        <h2 className="font-semibold">Backup & Restore</h2>
+      {activeView === "backup" && (
+        <Card>
+          <h2 className="font-semibold">Backup & Restore</h2>
         <p className="mt-1 text-sm text-gray-500">
           The current mode's ({mode.toUpperCase()}) dataset on this device —
           assessments, reports, photos, schedules, templates — plus your
@@ -737,8 +799,9 @@ export default function ReportsPage() {
             }}
             onClose={() => setPendingRestore(null)}
           />
-        )}
-      </Card>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

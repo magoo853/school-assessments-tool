@@ -36,7 +36,16 @@ interface Health {
   model: string;
 }
 
+type IntegrationView = "ai" | "storage" | "hub";
+
+const INTEGRATION_VIEWS: { id: IntegrationView; label: string }[] = [
+  { id: "ai", label: "AI Drafting" },
+  { id: "storage", label: "Device Storage" },
+  { id: "hub", label: "Code Red Hub" },
+];
+
 export default function IntegrationsPage() {
+  const [activeView, setActiveView] = useState<IntegrationView>("ai");
   const [aiOn, setAiOn] = useAiEnabled();
   const [health, setHealth] = useState<Health | null>(null);
   const [checking, setChecking] = useState(false);
@@ -164,10 +173,35 @@ export default function IntegrationsPage() {
         subtitle="Connected services and how they're set up."
       />
 
-      <Card>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">✨ AI drafting</h2>
+      {/* One selected integration at a time — the rest are not rendered. */}
+      <div
+        className="flex flex-wrap gap-2"
+        role="tablist"
+        aria-label="Integrations view"
+      >
+        {INTEGRATION_VIEWS.map((view) => (
+          <button
+            key={view.id}
+            type="button"
+            role="tab"
+            aria-selected={activeView === view.id}
+            onClick={() => setActiveView(view.id)}
+            className={`min-h-[44px] flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+              activeView === view.id
+                ? "btn-brand"
+                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            {view.label}
+          </button>
+        ))}
+      </div>
+
+      {activeView === "ai" && (
+        <Card>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">✨ AI drafting</h2>
             <p className="mt-1 max-w-xl text-sm text-slate-500">
               Drafts findings, AAR sections, and recommendations from your
               recorded assessment data. Every draft stays fully editable —
@@ -280,12 +314,14 @@ export default function IntegrationsPage() {
             ))}
           </div>
         </div>
-      </Card>
+        </Card>
+      )}
 
-      <Card>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Device storage</h2>
+      {activeView === "storage" && (
+        <Card>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Device storage</h2>
             <p className="mt-1 max-w-xl text-sm text-slate-500">
               Assessments and photo evidence live on this device until shared
               storage lands. Photos are the biggest consumer — when storage
@@ -470,19 +506,22 @@ export default function IntegrationsPage() {
               )}
             </div>
           </>
-        )}
-      </Card>
+          )}
+        </Card>
+      )}
 
-      <Card>
-        <h2 className="font-semibold text-slate-900">Code Red Hub</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Work started here can move into the Code Red Hub — use{" "}
-          <span className="font-medium">
-            Reports &amp; Exports → Export for Code Red Hub
-          </span>{" "}
-          to download the exchange package.
-        </p>
-      </Card>
+      {activeView === "hub" && (
+        <Card>
+          <h2 className="font-semibold text-slate-900">Code Red Hub</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Work started here can move into the Code Red Hub — use{" "}
+            <span className="font-medium">
+              Reports &amp; Exports → Export for Code Red Hub
+            </span>{" "}
+            to download the exchange package.
+          </p>
+        </Card>
+      )}
     </div>
   );
 }
