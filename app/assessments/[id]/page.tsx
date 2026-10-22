@@ -286,7 +286,14 @@ function CheckpointCard({
 
       {answer !== null && (
         <div className="mt-4 space-y-4">
-          <Field label="Risk">
+          <Field
+            label="Risk"
+            hint={
+              answer === "no"
+                ? "Rates the finding this NO answer creates."
+                : "Only used if this checkpoint becomes a finding."
+            }
+          >
             <RiskSeg
               value={response?.risk ?? null}
               onChange={(r) => onSave({ risk: r })}
