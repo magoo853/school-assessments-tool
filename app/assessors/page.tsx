@@ -468,6 +468,7 @@ export default function AssessorsPage() {
       {mode === "prod" && <ProdNotice />}
       <PageHeader
         title="Assessors"
+        subtitle="Verify each assessor's photo and background clearance before the visit."
         actions={<Btn onClick={openAdd}>＋ Add assessor</Btn>}
       />
 
