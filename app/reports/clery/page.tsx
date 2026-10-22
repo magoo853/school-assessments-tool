@@ -100,7 +100,7 @@ export default function CleryListPage() {
       <BackLink href="/reports" label="Reports" />
       <PageHeader
         title="Clery Act ASR Builder"
-        subtitle="Annual Security Report builder. An ASR for year Y covers statistics for Y−3 through Y−1."
+        subtitle="An ASR for year Y covers statistics for Y−3 through Y−1."
         actions={<Btn onClick={openNew}>+ New ASR</Btn>}
       />
       {mode === "prod" && <ProdNotice />}

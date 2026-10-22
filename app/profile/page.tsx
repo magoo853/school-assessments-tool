@@ -127,7 +127,6 @@ export default function ProfilePage() {
     <div className="space-y-6">
       <PageHeader
         title="My Profile"
-        subtitle="Who's working on this device — the dashboard greets you by name."
       />
 
       {/* Current profile */}

@@ -170,7 +170,6 @@ export default function IntegrationsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Integrations"
-        subtitle="Connected services and how they're set up."
       />
 
       {/* One selected integration at a time — the rest are not rendered. */}

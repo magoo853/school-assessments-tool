@@ -92,7 +92,6 @@ export default function PoliciesPage() {
     <div className="mx-auto max-w-5xl p-4 md:p-6">
       <PageHeader
         title="Policy Docs library"
-        subtitle="Markdown policy documents, grouped by category. Starter templates are seeded in demo mode."
         actions={<Btn onClick={startNew}>+ New doc</Btn>}
       />
       {mode === "prod" && <ProdNotice />}

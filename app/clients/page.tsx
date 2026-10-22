@@ -174,7 +174,6 @@ function ClientsInner() {
     <div>
       <PageHeader
         title="Client history"
-        subtitle="Pick a client to see their assessment timeline and safety-score trend."
       />
       {mode === "prod" && <ProdNotice />}
 

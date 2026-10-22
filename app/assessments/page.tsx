@@ -249,7 +249,6 @@ function AssessmentsInner() {
     <div>
       <PageHeader
         title="Assessments"
-        subtitle="Walkthrough assessments by client and campus."
         actions={
           <Btn onClick={() => setShowNew(true)}>+ New assessment</Btn>
         }
