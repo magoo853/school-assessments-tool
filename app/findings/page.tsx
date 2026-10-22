@@ -277,7 +277,6 @@ function FindingsInner() {
     <div>
       <PageHeader
         title="Findings"
-        subtitle="Every finding across all assessments — filter, search, and drill into the source assessment."
         actions={
           <>
             <button

@@ -271,7 +271,6 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title={profile ? `Hi, ${firstNameOf(profile.name)}` : "Dashboard"}
-        subtitle="Assessment pipeline, upcoming visits, and findings at a glance."
         actions={
           <Link
             href="/summary"

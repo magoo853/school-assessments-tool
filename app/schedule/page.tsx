@@ -598,7 +598,6 @@ function ScheduleInner() {
       {mode === "prod" && <ProdNotice />}
       <PageHeader
         title="Schedule"
-        subtitle="Dispatch board for upcoming and past assessment visits."
         actions={
           <Btn
             onClick={() => {
