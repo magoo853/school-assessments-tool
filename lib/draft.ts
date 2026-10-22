@@ -3,7 +3,7 @@
  * Key resolution server-side: a per-request key from the in-app
  * Integrations setting (stored on this device only) wins; otherwise
  * the server's AI_API_KEY env var. No key → 503 AI_NOT_CONFIGURED →
- * caller falls back to template-based drafts with a subtle hint.
+ * the caller shows the AI-off hint and inserts nothing.
  */
 "use client";
 

@@ -202,7 +202,7 @@ export default function CleryListPage() {
               </Field>
             )}
             {(schools.length === 0 || schoolChoice === "__new" || schoolChoice === "") && (
-              <Field label="Institution" hint="Fictional placeholder name for demo work.">
+              <Field label="Institution" hint={mode === "prod" ? "Legal name of the school or institution this ASR covers." : "Fictional placeholder name for demo work."}>
                 <input
                   className={inputCls}
                   value={institution}
