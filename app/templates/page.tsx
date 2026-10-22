@@ -450,7 +450,6 @@ export default function TemplatesPage() {
     <div>
       <PageHeader
         title="Templates"
-        subtitle="System walkthroughs plus your own custom checklists — custom templates work everywhere built-ins do."
         actions={
           <Btn
             onClick={() => {

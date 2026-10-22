@@ -234,7 +234,6 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Reports & Exports"
-        subtitle="Generate editable reports from completed walkthroughs, or export raw data as CSV."
       />
       {mode === "prod" && <ProdNotice />}
 
