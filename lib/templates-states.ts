@@ -210,7 +210,7 @@ const PA_DOMAINS: TemplateDomain[] = [
 ];
 
 const VA_REC =
-  "Record a corrective action with the checklist's priority (Critical / High / Medium / Low) and close it out in the school safety audit file.";
+  "Record a corrective action, rate its priority with the risk rating set on the checkpoint, and close it out in the school safety audit file.";
 
 const VA_DOMAINS: TemplateDomain[] = [
   { id: "va-zone1", name: "Zone 1 — Immediate Neighborhood", checkpoints: [
