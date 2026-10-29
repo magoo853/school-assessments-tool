@@ -26,7 +26,7 @@ import {
 } from "@/lib/findingsExport";
 import { getCheckpoint } from "@/lib/templates";
 import { resolveTemplate, allTemplates } from "@/lib/customTemplates";
-import { photosFor } from "@/lib/photos";
+import { photosFor, photosReady } from "@/lib/photos";
 import { isPostAssessmentPhoto } from "@/lib/photoEvidence";
 import { getProfile } from "@/lib/profile";
 import { useMode } from "@/lib/mode";
@@ -180,6 +180,18 @@ function FindingsInner() {
 
   useEffect(() => {
     setRows(loadRows());
+    // Photo thumbnails resolve from the IndexedDB-backed cache; if
+    // hydration finishes after the first render, reload rows so the
+    // thumbnails appear (previously they showed only in whichever
+    // filter view happened to render after hydration — 2026-10-29
+    // production audit).
+    let live = true;
+    void photosReady().then(() => {
+      if (live) setRows(loadRows());
+    });
+    return () => {
+      live = false;
+    };
   }, [mode]);
 
   const domainOptions = useMemo(
@@ -219,11 +231,15 @@ function FindingsInner() {
     });
   }, [rows, riskFilter, clientFilter, domainFilter, caFilter, query]);
 
-  const openCount = rows.filter((r) => {
+  // Header counts describe the VISIBLE (filtered) set, matching the
+  // finding count beside them — previously the corrective-action
+  // counts were global while the finding count was filtered
+  // (2026-10-29 production audit).
+  const openCount = filtered.filter((r) => {
     const s = caStatusOf(r.finding);
     return s === "open" || s === "in_progress";
   }).length;
-  const overdueCount = rows.filter((r) => isOverdue(r.finding)).length;
+  const overdueCount = filtered.filter((r) => isOverdue(r.finding)).length;
 
   const updateCa = (f: Finding, patch: Partial<Finding>) => {
     const next: Finding = { ...f, ...patch };

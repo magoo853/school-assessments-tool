@@ -287,7 +287,9 @@ export default function IntegrationsPage() {
             <p className="text-sm font-semibold text-slate-800">AI drafting</p>
             <p className="text-xs text-slate-500">
               {aiOn
-                ? "On — “Draft with AI” buttons appear in walkthroughs and reports."
+                ? connected
+                  ? "On — “Draft with AI” buttons appear in walkthroughs and reports."
+                  : "On — “Draft with AI” buttons appear, but drafting stays off until the AI connection works (see status above)."
                 : "Off — AI buttons are hidden everywhere. Template drafting still works."}
             </p>
           </div>

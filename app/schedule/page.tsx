@@ -465,6 +465,12 @@ function ReassessmentPanel({
   })();
 
   const rows = clients.map((c) => ({ client: c, ...getReassessment(c) }));
+  // The heading count is the number actually DUE (overdue or due
+  // soon) — not every known client, most of which have no completed
+  // assessment and so cannot be "due" (2026-10-29 production audit).
+  const dueCount = rows.filter(
+    (r) => r.state === "overdue" || r.state === "due-soon"
+  ).length;
   const toneFor = (state: string) =>
     state === "overdue"
       ? ("red" as const)
@@ -486,7 +492,7 @@ function ReassessmentPanel({
 
   return (
     <Card>
-      <SectionHeading count={rows.length}>Reassessments due</SectionHeading>
+      <SectionHeading count={dueCount}>Reassessments due</SectionHeading>
       <p className="mt-1 text-sm text-gray-500">
         Completed assessments start a 12-month reassessment clock. Tap a
         school to schedule its reassessment and assign an assessor.

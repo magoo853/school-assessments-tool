@@ -357,15 +357,21 @@ export default function AssessorsPage() {
     return m;
   }, [rows, mode]);
 
-  const teamTotals = useMemo(() => {
-    const t = { scheduled: 0, inProgress: 0, completed: 0 };
-    for (const w of workloads.values()) {
-      t.scheduled += w.scheduled;
-      t.inProgress += w.inProgress;
-      t.completed += w.completed;
-    }
-    return t;
-  }, [workloads]);
+  // Team totals count DISTINCT entities, matching how the Schedule
+  // and Dashboard count them — summing per-assessor workloads missed
+  // unassigned visits and double-counted shared assessments (the
+  // header disagreed with the Schedule page in the 2026-10-29 audit).
+  const teamTotals = useMemo(
+    () => ({
+      scheduled: db.schedules.filter((s) => s.status === "scheduled").length,
+      inProgress: db.assessments.filter((a) => a.status === "in_progress")
+        .length,
+      completed: db.assessments.filter((a) => a.status === "completed")
+        .length,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, mode]
+  );
 
   const openAdd = () => {
     setEditing(null);
