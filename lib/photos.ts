@@ -103,9 +103,33 @@ function openDb(): Promise<IDBDatabase | null> {
         if (!d.objectStoreNames.contains("prod"))
           d.createObjectStore("prod", { keyPath: "id" });
       };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-      req.onblocked = () => resolve(null);
+      req.onsuccess = () => {
+        const d = req.result;
+        // If another tab later forces a version change, release this
+        // connection and forget it so the next call reopens cleanly
+        // instead of transacting on a dead handle.
+        d.onversionchange = () => {
+          try {
+            d.close();
+          } catch {
+            /* already closed */
+          }
+          dbPromise = null;
+        };
+        resolve(d);
+      };
+      // A failed or blocked open must NOT be cached: caching the null
+      // poisons every photo save for the rest of the session (the
+      // 2026-10-29 production audit hit exactly this — saves failed
+      // until a reload). Forget the promise so the next call retries.
+      req.onerror = () => {
+        dbPromise = null;
+        resolve(null);
+      };
+      req.onblocked = () => {
+        dbPromise = null;
+        resolve(null);
+      };
     });
   }
   return dbPromise;
@@ -238,6 +262,10 @@ function hydrate(mode: Mode): Promise<void> {
       // No IndexedDB: legacy backend, old ceiling, app still works.
       st.backend = "ls";
       for (const d of legacy) st.cache.set(d.id, d);
+      // If IndexedDB exists but the open failed/was blocked, do not
+      // pin this fallback for the whole session — let the next call
+      // retry IndexedDB (the merge above is idempotent).
+      if (typeof indexedDB !== "undefined") st.ready = null;
     }
   })();
   return st.ready;
@@ -425,11 +453,35 @@ export async function savePhoto(
       caption,
       createdAt: nowIso(),
     };
-    try {
-      if (st.backend === "idb") {
+    const writeOnce = async (): Promise<void> => {
+      const s = stateFor(mode);
+      if (s.backend === "idb") {
         await idbPut(mode, doc);
       } else {
-        writeLsPhotos(mode, [...st.cache.values(), doc]);
+        writeLsPhotos(mode, [...s.cache.values(), doc]);
+      }
+    };
+    try {
+      try {
+        await writeOnce();
+      } catch (firstErr) {
+        // One self-heal retry: a stale/blocked connection or a
+        // session-poisoned backend choice fails every save until a
+        // reload (2026-10-29 audit). Reset the connection state,
+        // re-hydrate, and try once more before surfacing an error.
+        if (
+          firstErr instanceof DOMException &&
+          (firstErr.name === "QuotaExceededError" ||
+            firstErr.name === "NS_ERROR_DOM_QUOTA_REACHED")
+        ) {
+          throw firstErr;
+        }
+        dbPromise = null;
+        const s = stateFor(mode);
+        s.ready = null;
+        s.backend = null;
+        await hydrate(mode);
+        await writeOnce();
       }
     } catch (e) {
       const msg =

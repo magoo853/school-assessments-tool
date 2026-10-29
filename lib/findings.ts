@@ -136,6 +136,23 @@ export function deriveFindings(assessmentId: string): Finding[] {
  * Idempotent across re-derivation: a mention already recorded for the
  * same checkpoint (via a previous finding id) is not added again.
  */
+/**
+ * Word-boundary keyword test: "lock" must match lock/locks/locked/
+ * locking but NOT "blocked" or "clock" (substring matching produced a
+ * phantom "Lock" equipment item on a fire-lanes finding in the
+ * 2026-10-29 production audit).
+ */
+const keywordMatchers = new Map<string, RegExp>();
+function keywordHit(hay: string, kw: string): boolean {
+  let re = keywordMatchers.get(kw);
+  if (!re) {
+    const esc = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    re = new RegExp(`\\b${esc}(?:s|es|ed|ing)?\\b`, "i");
+    keywordMatchers.set(kw, re);
+  }
+  return re.test(hay);
+}
+
 function deriveEquipmentMentions(
   assessmentId: string,
   findings: Finding[],
@@ -150,7 +167,7 @@ function deriveEquipmentMentions(
   for (const f of findings) {
     const hay = `${f.gapText} ${f.note}`.toLowerCase();
     for (const kw of EQUIPMENT_KEYWORDS) {
-      if (!hay.includes(kw)) continue;
+      if (!keywordHit(hay, kw)) continue;
       const name = equipmentName(kw);
       const prior = coveredByKey.get(`${f.checkpointKey}|${name.toLowerCase()}`);
       const dup = existing.some(

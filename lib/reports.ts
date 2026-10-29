@@ -258,6 +258,8 @@ export function buildAarMarkdown(
   L.push(`**Assessor(s):** ${assessorNames(a)}`);
   L.push(`**Prepared for:** ${a.clientName}`);
   L.push(`**Report date:** ${reportDate()}`);
+  const stamp = reviewStampMd(a);
+  if (stamp) L.push(stamp);
   L.push("");
   L.push("---");
   L.push("");
@@ -436,6 +438,22 @@ export function buildAarMarkdown(
   return L.join("\n");
 }
 
+/**
+ * Approval stamp for generated report documents. The shared/print
+ * HTML has carried the stamp since the review workflow shipped, but
+ * the markdown documents themselves did not — so a client receiving
+ * the report file saw no approval (2026-10-29 production audit).
+ */
+export function reviewStampMd(a: Assessment): string | null {
+  const r = a.review;
+  if (!r) return null;
+  if (r.state === "approved")
+    return `**Review:** \u2713 Reviewed & approved by ${r.decidedBy ?? "reviewer"} \u00b7 ${(r.decidedAt ?? "").slice(0, 10)}`;
+  if (r.state === "pending")
+    return `**Review:** \u23f3 In review \u2014 submitted by ${r.submittedBy} \u00b7 ${(r.submittedAt ?? "").slice(0, 10)}`;
+  return null;
+}
+
 export function buildFindingsMarkdown(
   a: Assessment,
   findings: Finding[],
@@ -453,6 +471,8 @@ export function buildFindingsMarkdown(
   L.push(`**Assessment date:** ${assessmentDate(a)}`);
   L.push(`**Assessor(s):** ${assessorNames(a)}`);
   L.push(`**Report date:** ${reportDate()}`);
+  const stamp = reviewStampMd(a);
+  if (stamp) L.push(stamp);
   L.push("");
   L.push(
     `This report documents ${c.findings} finding${c.findings === 1 ? "" : "s"} (${c.high} high-risk, ${c.moderate} moderate-risk, ${c.low} low-risk), each worded as a negative gap statement describing what was observed to be missing or deficient.`
@@ -512,6 +532,8 @@ export function buildRecommendationsMarkdown(
   L.push(`**Assessment date:** ${assessmentDate(a)}`);
   L.push(`**Assessor(s):** ${assessorNames(a)}`);
   L.push(`**Report date:** ${reportDate()}`);
+  const stamp = reviewStampMd(a);
+  if (stamp) L.push(stamp);
   L.push("");
   L.push("## Priority Recommendations");
   L.push("");

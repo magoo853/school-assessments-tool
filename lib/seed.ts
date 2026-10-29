@@ -7,6 +7,7 @@
  * PROD mode never installs this data.
  */
 import { db, uid, nowIso } from "./store";
+import { getTemplate } from "./templates";
 import { DISCLOSURES } from "./clery";
 import type {
   Assessment,
@@ -159,21 +160,35 @@ export function installSeed(): void {
       photoRef: "",
     });
 
-  resp(riverside.id, "acc-01", "no", "high", "Side door by the cafeteria was found propped open with a rock.");
-  resp(riverside.id, "acc-02", "yes", null, "Main entrance funnels all visitors through the front office.");
-  resp(riverside.id, "door-01", "no", "high", "Several rooms in Building C have doors that only lock with a key from the hallway side.");
-  resp(riverside.id, "door-02", "no", "high", "Two pedestrian gates along the playground fence were propped open during school hours.");
-  resp(riverside.id, "vis-01", "no", "moderate", "Visitor desk unstaffed 2:45–3:15 PM; two visitors walked in unchallenged.");
-  resp(riverside.id, "eop-01", "no", "low", "Emergency operations plan is dated 2023 and has not been readopted.");
-  resp(riverside.id, "com-01", "yes", null, "Two-way radios issued to all hallway monitors and the front office.");
-  resp(riverside.id, "drill-01", "yes", null, "Lockdown drill logged within the last 60 days.");
-  resp(riverside.id, "light-01", "yes", null, "Parking lots and walkways meet lighting standard after dusk.");
-  resp(riverside.id, "cam-01", "na", null, "No cameras installed — N/A until a system is deployed.");
+  // Checkpoint keys are the ISC template's real keys (the previous
+  // acc-01/door-01-style keys matched no checkpoint in the current
+  // template, so the seeded walkthroughs rendered 0 answered —
+  // 2026-10-29 production audit).
+  resp(riverside.id, "4.7", "no", "high", "Side door by the cafeteria was found propped open with a rock.");
+  resp(riverside.id, "4.1", "yes", null, "Main entrance funnels all visitors through the front office.");
+  resp(riverside.id, "5.1", "no", "high", "Several rooms in Building C have doors that only lock with a key from the hallway side.");
+  resp(riverside.id, "1.3", "no", "high", "Two pedestrian gates along the playground fence were propped open during school hours.");
+  resp(riverside.id, "4.3", "no", "moderate", "Visitor desk unstaffed 2:45–3:15 PM; two visitors walked in unchallenged.");
+  resp(riverside.id, "10.1", "no", "low", "Emergency operations plan is dated 2023 and has not been readopted.");
+  resp(riverside.id, "8.2", "yes", null, "Two-way radios issued to all hallway monitors and the front office.");
+  resp(riverside.id, "10.3", "yes", null, "Lockdown drill logged within the last 60 days.");
+  resp(riverside.id, "6.1", "yes", null, "Parking lots and walkways meet lighting standard after dusk.");
+  resp(riverside.id, "7.1", "na", null, "No cameras installed — N/A until a system is deployed.");
 
-  resp(northview.id, "acc-01", "yes", null, "All exterior doors locked during the walkthrough.");
-  resp(northview.id, "door-01", "yes", null, "Classroom doors in Building A lock from the inside.");
-  resp(northview.id, "vis-01", "no", "moderate", "Visitor log is paper-based and not consistently used.");
-  resp(northview.id, "com-01", "na", null, "Not assessed yet — Building B scheduled for next visit.");
+  // Riverside is the completed showcase assessment: answer every
+  // remaining ISC checkpoint YES so its 76/76 progress agrees with
+  // its Completed status (its five NO answers carry the findings).
+  const riversideAnswered = new Set([
+    "4.7", "4.1", "5.1", "1.3", "4.3", "10.1", "8.2", "10.3", "6.1", "7.1",
+  ]);
+  for (const d of getTemplate("isc42").domains)
+    for (const c of d.checkpoints)
+      if (!riversideAnswered.has(c.key)) resp(riverside.id, c.key, "yes", null, "");
+
+  resp(northview.id, "4.1", "yes", null, "All exterior doors locked during the walkthrough.");
+  resp(northview.id, "5.1", "yes", null, "Classroom doors in Building A lock from the inside.");
+  resp(northview.id, "4.3", "no", "moderate", "Visitor log is paper-based and not consistently used.");
+  resp(northview.id, "8.2", "na", null, "Not assessed yet — Building B scheduled for next visit.");
 
   /* ---------------------------------- findings ----------------------------------- */
 
@@ -197,7 +212,7 @@ export function installSeed(): void {
 
   const f1 = mkFinding(
     riverside.id,
-    "door-01",
+    "5.1",
     "Several classroom doors cannot be locked from the inside",
     "high",
     "Building C classrooms lock only with a key from the hallway side.",
@@ -205,7 +220,7 @@ export function installSeed(): void {
   );
   const f2 = mkFinding(
     riverside.id,
-    "door-02",
+    "1.3",
     "Two exterior gates along the playground fence remain propped open during school hours",
     "high",
     "Both pedestrian gates were propped with rocks; no staff monitoring the opening.",
@@ -213,7 +228,7 @@ export function installSeed(): void {
   );
   const f3 = mkFinding(
     riverside.id,
-    "vis-01",
+    "4.3",
     "Visitor check-in desk is unstaffed during afternoon dismissal",
     "moderate",
     "Desk empty 2:45–3:15 PM; visitors walked in unchallenged.",
@@ -221,11 +236,20 @@ export function installSeed(): void {
   );
   const f4 = mkFinding(
     riverside.id,
-    "eop-01",
+    "10.1",
     "Emergency operations plan has not been updated since 2023",
     "low",
     "Plan on file is dated 2023; no annual review on record.",
     "Readopt the EOP with an annual review cycle and distribute updated annexes to building leads.",
+  );
+
+  const f5 = mkFinding(
+    riverside.id,
+    "4.7",
+    "A non-main entry door was found propped open during school hours",
+    "high",
+    "Side door by the cafeteria was found propped open with a rock.",
+    "Keep all non-main entries secured during school hours; add a self-closing check or door-prop alarm on the cafeteria side door.",
   );
 
   /* ---------------------------------- equipment ---------------------------------- */
