@@ -452,7 +452,9 @@ export default function ReportsPage() {
                       {resolveTemplate(a.templateId).name} ·{" "}
                       {a.completedAt
                         ? `Completed ${a.completedAt.slice(0, 10)}`
-                        : `In progress · started ${a.createdAt.slice(0, 10)}`}
+                        : a.status === "draft"
+                          ? `Draft · created ${a.createdAt.slice(0, 10)}`
+                          : `In progress · started ${a.createdAt.slice(0, 10)}`}
                     </span>
                     {a.review?.state === "approved" && (
                       <Badge tone="green">✓ Approved</Badge>

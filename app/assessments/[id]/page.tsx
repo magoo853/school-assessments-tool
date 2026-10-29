@@ -833,8 +833,12 @@ function ReadOnlyAnswers({
                         )}
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        {r?.answer === "no" && r.risk && (
-                          <RiskBadge risk={r.risk} />
+                        {r?.answer === "no" && (
+                          // Effective risk: an unset risk derives as
+                          // Moderate in the finding, so show Moderate
+                          // here too (previously a Moderate finding
+                          // showed no risk label — 2026-10-29 audit).
+                          <RiskBadge risk={r.risk ?? "moderate"} />
                         )}
                         {chip(r?.answer)}
                       </div>
