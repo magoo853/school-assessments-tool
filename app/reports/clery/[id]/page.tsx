@@ -17,6 +17,7 @@ import {
   statsProgress,
   disclosureProgress,
   generateAsrMarkdown,
+  completeStatsGrid,
   healDisclosures,
 } from "@/lib/clery";
 
@@ -190,9 +191,14 @@ export default function CleryEditorPage() {
       const healed = healDisclosures(r);
       const normalized = {
         ...r,
-        stats: Array.isArray(r.stats) ? r.stats : [],
+        stats: Array.isArray(r.stats) ? [...r.stats] : [],
       };
-      if (healed || !Array.isArray(r.stats)) db.cleryReports.upsert(normalized);
+      // Complete the statistics grid: a partial stats array (seeded
+      // or restored reports) left dead "—" cells that could never be
+      // edited (2026-10-29 audit, Pass 2).
+      const gridCompleted = completeStatsGrid(normalized);
+      if (healed || gridCompleted || !Array.isArray(r.stats))
+        db.cleryReports.upsert(normalized);
       setReport(normalized);
       setYear(statsWindow(r.reportYear)[2]);
     } else {

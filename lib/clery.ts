@@ -257,6 +257,44 @@ export function healDisclosures(report: CleryReport): boolean {
   return changed;
 }
 
+/**
+ * Complete a report's statistics grid in place: any missing
+ * (year × group × offense × geo) cell gets an unentered row. Reports
+ * seeded or restored with a partial stats array otherwise render
+ * dead "—" cells that can never be edited (2026-10-29 audit, Pass 2).
+ * Returns true when rows were added.
+ */
+export function completeStatsGrid(report: CleryReport): boolean {
+  const years = statsWindow(report.reportYear);
+  const have = new Set(
+    report.stats.map((s) => `${s.year}|${s.group}|${s.offense}|${s.geo}`)
+  );
+  let added = false;
+  OFFENSE_GROUPS.forEach((group) => {
+    group.offenses.forEach((offense) => {
+      years.forEach((year) => {
+        GEOS.forEach((geo) => {
+          const key = `${year}|${group.label}|${offense.label}|${geo.key}`;
+          if (!have.has(key)) {
+            report.stats.push({
+              id: uid("clsty"),
+              reportId: report.id,
+              year,
+              group: group.label,
+              offense: offense.label,
+              geo: geo.key,
+              value: null,
+              confirmedZero: false,
+            });
+            added = true;
+          }
+        });
+      });
+    });
+  });
+  return added;
+}
+
 export function blankCleryReport(
   institution: string,
   reportYear: number,
