@@ -176,6 +176,10 @@ export default function CleryEditorPage() {
   const [loaded, setLoaded] = useState(false);
   const [year, setYear] = useState<number | null>(null);
   const [pendingZero, setPendingZero] = useState<{ rowId: string; label: string } | null>(null);
+  // Bumped when a zero-confirm resolves: remounts the stat cells so a
+  // declined zero does not linger as a typed "0" in the field until
+  // reload (2026-10-29 audit, Pass 3 note).
+  const [cellNonce, setCellNonce] = useState(0);
   const [preview, setPreview] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -246,6 +250,7 @@ export default function CleryEditorPage() {
       setPendingZero(null);
       return;
     }
+    setCellNonce((n) => n + 1);
     if (confirm) {
       update({
         ...report,
@@ -434,7 +439,7 @@ export default function CleryEditorPage() {
                           return (
                             <td key={geo.key} className="px-1 py-1.5">
                               {row ? (
-                                <StatCell row={row} onCommit={handleCellCommit} />
+                                <StatCell key={`${row.id}:${cellNonce}`} row={row} onCommit={handleCellCommit} />
                               ) : (
                                 <span className="text-xs text-gray-400">—</span>
                               )}
