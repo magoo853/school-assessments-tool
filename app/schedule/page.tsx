@@ -492,10 +492,11 @@ function ReassessmentPanel({
 
   return (
     <Card>
-      <SectionHeading count={dueCount}>Reassessments due</SectionHeading>
+      <SectionHeading count={dueCount}>Reassessment tracker</SectionHeading>
       <p className="mt-1 text-sm text-gray-500">
-        Completed assessments start a 12-month reassessment clock. Tap a
-        school to schedule its reassessment and assign an assessor.
+        Completed assessments start a 12-month reassessment clock. The
+        count is the schools due now (overdue or due within 90 days).
+        Tap a school to schedule its reassessment and assign an assessor.
       </p>
       <ul className="mt-3 divide-y divide-gray-100">
         {rows.map((r) => (

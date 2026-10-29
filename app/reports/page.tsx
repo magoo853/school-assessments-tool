@@ -110,6 +110,7 @@ export default function ReportsPage() {
   const [tick, setTick] = useState(0);
   const [hubScope, setHubScope] = useState<"completed" | "all">("completed");
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
+  const [backupMsgOk, setBackupMsgOk] = useState(false);
   const [pendingRestore, setPendingRestore] = useState<{
     file: BackupFile;
     message: string;
@@ -771,7 +772,11 @@ export default function ReportsPage() {
           </label>
         </div>
         {backupMsg && (
-          <p className="mt-2 text-sm text-red-600">{backupMsg}</p>
+          <p
+            className={`mt-2 text-sm ${backupMsgOk ? "text-green-700" : "text-red-600"}`}
+          >
+            {backupMsg}
+          </p>
         )}
         {pendingRestore && (
           <ConfirmModal
@@ -790,12 +795,20 @@ export default function ReportsPage() {
                     k.replace(/^sat_(demo|prod)_/, "").replace(/_/g, " ")
                   )
                   .join(", ");
+                setBackupMsgOk(true);
                 setBackupMsg(
                   `Restored ${result.restored} entries into ${result.mode.toUpperCase()}; ${result.skipped.length} invalid entr${result.skipped.length === 1 ? "y was" : "ies were"} skipped (${names}). Reloading…`
                 );
                 setTimeout(() => window.location.reload(), 1200);
               } else {
-                window.location.reload();
+                // Confirm success before reloading — a silent reload
+                // left users inferring the restore worked from the
+                // changed data (2026-10-29 audit, Pass 2).
+                setBackupMsgOk(true);
+                setBackupMsg(
+                  `\u2713 Restored ${result.restored} entries into ${result.mode.toUpperCase()}. Reloading\u2026`
+                );
+                setTimeout(() => window.location.reload(), 1200);
               }
             }}
             onClose={() => setPendingRestore(null)}

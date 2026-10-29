@@ -124,6 +124,17 @@ function PrintInner() {
         {counts.open} corrective action{counts.open === 1 ? "" : "s"} open
         {counts.overdue > 0 && ` · ${counts.overdue} overdue`}
         {client !== "all" && ` · Client: ${client}`}
+        {risk !== "all" && ` · Risk: ${risk}`}
+        {domain !== "all" &&
+          ` · Domain: ${rows.find((r) => r.domainKey === domain)?.domainName ?? domain}`}
+        {ca !== "all" && ` · Action status: ${ca.replace(/_/g, " ")}`}
+        {q && ` · Search: \u201c${q}\u201d`}
+        {client === "all" &&
+          risk === "all" &&
+          domain === "all" &&
+          ca === "all" &&
+          !q &&
+          " · All findings"}
         {mode === "demo" && " · DEMO data"}
       </p>
 
