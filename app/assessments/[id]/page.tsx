@@ -70,6 +70,7 @@ import {
   Modal,
   ConfirmModal,
   Badge,
+  InfoHint,
 } from "@/components/ui";
 
 /* ------------------------------------------------------------------ */
@@ -316,7 +317,7 @@ function CheckpointCard({
         <div className="mt-4 space-y-4">
           <Field
             label="Risk"
-            hint={
+            info={
               answer === "no"
                 ? "Rates the finding this NO answer creates."
                 : "Only used if this checkpoint becomes a finding."
@@ -370,7 +371,7 @@ function CheckpointCard({
         {assetTouch && onCondition && (
           <Field
             label={`Asset condition — ${assetClassLabel(assetTouch.assetClass)} (optional)`}
-            hint="You're standing in front of it: score its condition and, if a plate or record shows it, the install year. Scores build the school's asset list and its replacement forecast — they are kept per visit, so a reassessment adds to the trend instead of replacing it."
+            info="You're standing in front of it: score its condition and, if a plate or record shows it, the install year. Scores build the school's asset list and its replacement forecast — they are kept per visit, so a reassessment adds to the trend instead of replacing it."
           >
             <div
               className="flex flex-wrap items-center gap-2"
@@ -679,11 +680,12 @@ function ReviewPanel({
         <Card className="mb-4 border-violet-200 bg-violet-50/60">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-semibold text-slate-900">Peer review</p>
-              <p className="mt-0.5 text-sm text-slate-500">
-                Get a second pair of eyes on this assessment before the
-                report goes to the client. Submitting locks it against
-                edits until the reviewer decides.
+              <p className="flex items-center gap-0.5 font-semibold text-slate-900">
+                Peer review
+                <InfoHint
+                  label="how peer review works"
+                  text="Get a second pair of eyes on this assessment before the report goes to the client. Submitting locks it against edits until the reviewer decides — they can approve it or send it back with a comment."
+                />
               </p>
             </div>
             <Btn onClick={openSubmit}>Submit for review</Btn>
@@ -932,8 +934,7 @@ function SchoolAssetRow({
       </div>
       {life.state === "past" && (
         <p className="mt-1 text-xs font-medium text-red-700">
-          Replace, don't repair — {lifeBasis(asset, year)}. This flag and
-          its basis appear in the school's reports.
+          Replace, don't repair — {lifeBasis(asset, year)}.
         </p>
       )}
     </li>
@@ -955,14 +956,13 @@ function SchoolAssetsCard({
   if (!assets.length) return null;
   return (
     <Card className="mb-4">
-      <h2 className="text-sm font-semibold text-slate-800">
+      <h2 className="flex items-center gap-0.5 text-sm font-semibold text-slate-800">
         School assets — condition &amp; remaining life
+        <InfoHint
+          label="how the school asset list works"
+          text={`Recorded at the walkthrough checkpoints for ${assessment.clientName} (${assessment.campus}). Scores accumulate across visits; install years drive the replacement forecast in this school's reports. Replace-don't-repair flags and their basis appear in the reports too.`}
+        />
       </h2>
-      <p className="mt-0.5 text-xs text-slate-500">
-        Recorded at the walkthrough checkpoints for {assessment.clientName}{" "}
-        ({assessment.campus}). Scores accumulate across visits; install
-        years drive the replacement forecast in this school's reports.
-      </p>
       <ul className="divide-y divide-slate-100">
         {assets.map((a) => (
           <SchoolAssetRow
@@ -1102,13 +1102,15 @@ function ReviewStep({
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-semibold text-gray-900">
+            <p className="flex items-center gap-0.5 font-semibold text-gray-900">
               Assessment complete — findings review
+              <InfoHint
+                label="how findings are derived"
+                text="Findings are derived from “no” answers and written as negative gap statements."
+              />
             </p>
             <p className="mt-1 text-sm text-gray-500">
-              {findings.length} finding{findings.length === 1 ? "" : "s"}{" "}
-              derived from “no” answers. Findings use negative gap statements;
-              add equipment per finding below.
+              {findings.length} finding{findings.length === 1 ? "" : "s"}
             </p>
           </div>
           {onReopen && (

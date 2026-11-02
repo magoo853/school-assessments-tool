@@ -297,13 +297,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <div className="flex-1 overflow-y-auto">
           <NavLinks />
         </div>
-        <div className="border-t border-white/10 px-5 py-4">
-          <p className="text-[11px] leading-relaxed text-slate-500">
-            Field-ready assessments,
-            <br />
-            built for assessors.
-          </p>
-        </div>
       </aside>
 
       {/* Mobile drawer (hidden in print) */}

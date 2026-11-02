@@ -19,7 +19,7 @@ import {
   FSL_QUALITATIVE,
   type FslPoints,
 } from "@/lib/fsl";
-import { Card, Btn, Field, inputCls, Badge } from "@/components/ui";
+import { Card, Btn, Field, InfoHint, inputCls, Badge } from "@/components/ui";
 
 type QualKey = "mission" | "symbolism" | "threat";
 
@@ -210,11 +210,12 @@ export default function FslWizard({ assessmentId }: { assessmentId: string }) {
       {federal && (
         <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
           <div>
-            <p className="text-sm font-bold text-slate-800">
+            <p className="flex items-center gap-0.5 text-sm font-bold text-slate-800">
               Facility Security Level determination
-            </p>
-            <p className="text-xs text-slate-500">
-              ISC RMP (2021) §4 · Sets the baseline Level of Protection for this assessment
+              <InfoHint
+                label="what the FSL determination is"
+                text="ISC RMP (2021) §4 · Sets the baseline Level of Protection for this assessment"
+              />
             </p>
           </div>
 
@@ -265,7 +266,7 @@ export default function FslWizard({ assessmentId }: { assessmentId: string }) {
             <div className="rounded-xl border border-slate-200 p-3">
               <Field
                 label="Facility population (headcount)"
-                hint={
+                info={
                   popNum != null && Number.isFinite(popNum) && popNum >= 0
                     ? `Maps to ${populationPoints(popNum)} pt — <100: 1 · 101–250: 2 · 251–750: 3 · >750: 4`
                     : "Bands: <100: 1 · 101–250: 2 · 251–750: 3 · >750: 4"
@@ -289,7 +290,7 @@ export default function FslWizard({ assessmentId }: { assessmentId: string }) {
             <div className="rounded-xl border border-slate-200 p-3">
               <Field
                 label="Facility size (square feet)"
-                hint={
+                info={
                   sizeNum != null && Number.isFinite(sizeNum) && sizeNum >= 0
                     ? `Maps to ${sizePoints(sizeNum)} pt — <10k: 1 · 10–100k: 2 · 100–250k: 3 · >250k: 4`
                     : "Bands: <10k: 1 · 10–100k: 2 · 100–250k: 3 · >250k: 4"
@@ -401,6 +402,13 @@ export default function FslWizard({ assessmentId }: { assessmentId: string }) {
                 Enter facility population and size to compute the determination.
               </p>
             )}
+            <div className="mt-2 flex justify-end">
+              <InfoHint
+                label="the FSL score bands"
+                align="right"
+                text="Bands: I 5–7 · II 8–12 · III 13–17 · IV 18–20. Level V facilities are designated separately per ISC RMP §4.5."
+              />
+            </div>
           </div>
 
           {error && (
@@ -410,10 +418,6 @@ export default function FslWizard({ assessmentId }: { assessmentId: string }) {
           <Btn onClick={save} className="w-full sm:w-auto">
             {saved ? "Update FSL determination" : "Save FSL determination"}
           </Btn>
-          <p className="text-xs text-slate-400">
-            Bands: I 5–7 · II 8–12 · III 13–17 · IV 18–20. Level V facilities are
-            designated separately per ISC RMP §4.5.
-          </p>
         </div>
       )}
     </Card>

@@ -47,19 +47,181 @@ export function BackLink({
   );
 }
 
+/**
+ * The ⓘ rule (James, 2026-11-02): the app shows titles and data —
+ * explanations a user genuinely needs live behind this button beside
+ * the heading or label they explain, never as visible blocks. Tap
+ * (mobile) or hover/focus (desktop) opens the popover; outside-tap,
+ * the ×, or Esc dismisses it; opening one closes any other. Live
+ * states, warnings, and blockers attached to an action never go
+ * behind an ⓘ — they stay visible.
+ */
+const INFOHINT_EVENT = "sat-infohint-open";
+
+export function InfoHint({
+  text,
+  label,
+  align = "left",
+  className = "",
+}: {
+  text: string;
+  /** What the popover explains — used in the button's aria-label. */
+  label: string;
+  align?: "left" | "right";
+  className?: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [pinned, setPinned] = React.useState(false);
+  const [shift, setShift] = React.useState(0);
+  const rootRef = React.useRef<HTMLSpanElement>(null);
+  const popRef = React.useRef<HTMLSpanElement>(null);
+  const popId = React.useId();
+
+  const close = React.useCallback(() => {
+    setOpen(false);
+    setPinned(false);
+  }, []);
+
+  const openHint = React.useCallback(
+    (pin: boolean) => {
+      window.dispatchEvent(
+        new CustomEvent(INFOHINT_EVENT, { detail: popId }),
+      );
+      setOpen(true);
+      if (pin) setPinned(true);
+    },
+    [popId],
+  );
+
+  // One popover at a time: another InfoHint opening closes this one.
+  React.useEffect(() => {
+    const onOther = (e: Event) => {
+      if ((e as CustomEvent).detail !== popId) close();
+    };
+    window.addEventListener(INFOHINT_EVENT, onOther);
+    return () => window.removeEventListener(INFOHINT_EVENT, onOther);
+  }, [popId, close]);
+
+  // Keep the popover inside the viewport: a ⓘ near the right edge
+  // (e.g. at the end of a wrapped heading) would otherwise open a
+  // popover that runs off-screen on a phone.
+  React.useLayoutEffect(() => {
+    if (!open) {
+      setShift(0);
+      return;
+    }
+    const el = popRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    let s = 0;
+    if (r.right > vw - 12) s = vw - 12 - r.right;
+    if (r.left + s < 12) s = 12 - r.left;
+    setShift(s);
+  }, [open ]);
+
+  // While open: outside-tap and Esc dismiss.
+  React.useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node))
+        close();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, close]);
+
+  return (
+    <span ref={rootRef} className={`relative inline-flex print:hidden ${className}`}>
+      <button
+        type="button"
+        aria-label={`About ${label}`}
+        aria-expanded={open}
+        aria-haspopup="true"
+        aria-controls={popId}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (open && pinned) close();
+          else openHint(true);
+        }}
+        onMouseEnter={() => {
+          if (!open) openHint(false);
+        }}
+        onMouseLeave={() => {
+          if (open && !pinned) close();
+        }}
+        onFocus={() => {
+          if (!open) openHint(false);
+        }}
+        onBlur={(e) => {
+          if (
+            open &&
+            !pinned &&
+            !rootRef.current?.contains(e.relatedTarget as Node)
+          )
+            close();
+        }}
+        className="-my-1.5 flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full"
+      >
+        <span
+          aria-hidden
+          className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 bg-white text-[11px] font-semibold text-slate-500"
+        >
+          i
+        </span>
+      </button>
+      {open && (
+        <span
+          ref={popRef}
+          id={popId}
+          role="dialog"
+          aria-label={`About ${label}`}
+          style={shift !== 0 ? { transform: `translateX(${shift}px)` } : undefined}
+          className={`absolute top-full z-40 mt-1 block w-72 max-w-[calc(100vw-3rem)] rounded-xl border border-slate-200 bg-white p-3 pr-10 text-left text-sm font-normal normal-case leading-relaxed text-slate-600 shadow-xl ${
+            align === "right" ? "right-0" : "left-0"
+          }`}
+        >
+          {text}
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={close}
+            className="absolute right-0.5 top-0.5 flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          >
+            ✕
+          </button>
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function PageHeader({
   title,
   subtitle,
+  info,
   actions,
 }: {
   title: string;
   subtitle?: string;
+  /** Explanation for the page, behind an ⓘ beside the title. */
+  info?: string;
   actions?: React.ReactNode;
 }) {
   return (
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
+        <h1 className="flex items-center gap-1 text-2xl font-bold tracking-tight text-slate-900">
+          {title}
+          {info && <InfoHint text={info} label={title} />}
+        </h1>
         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
@@ -149,14 +311,20 @@ export function Field({
   label,
   children,
   hint,
+  info,
 }: {
   label: string;
   children: React.ReactNode;
   hint?: string;
+  /** Explanation for the field, behind an ⓘ beside the label. */
+  info?: string;
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-gray-700">{label}</span>
+      <span className="mb-1.5 flex items-center gap-0.5 text-sm font-medium text-gray-700">
+        {label}
+        {info && <InfoHint text={info} label={label} />}
+      </span>
       {children}
       {hint && <span className="mt-1 block text-xs text-gray-500">{hint}</span>}
     </label>

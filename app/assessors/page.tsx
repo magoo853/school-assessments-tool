@@ -474,7 +474,7 @@ export default function AssessorsPage() {
       {mode === "prod" && <ProdNotice />}
       <PageHeader
         title="Assessors"
-        subtitle="Verify each assessor's photo and background clearance before the visit."
+        info="Verify each assessor's photo and background clearance before the visit."
         actions={<Btn onClick={openAdd}>＋ Add assessor</Btn>}
       />
 
@@ -660,7 +660,7 @@ export default function AssessorsPage() {
 
             <Field
               label="Clearance letter"
-              hint="PDF or image — stored with this record"
+              info="PDF or image — stored with this record"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <label className="inline-flex min-h-[44px] cursor-pointer items-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">

@@ -45,6 +45,7 @@ export function installSeed(): void {
     email: string,
     clearanceDate: string,
     clearanceExpiry: string,
+    notes: string,
   ): Assessor =>
     db.assessors.upsert({
       id: uid("asr"),
@@ -55,7 +56,7 @@ export function installSeed(): void {
       clearanceStatus: "current",
       clearanceDate,
       clearanceExpiry,
-      notes: "Demo record — fictional.",
+      notes,
     });
 
   const aVoss = mkAssessor(
@@ -65,6 +66,7 @@ export function installSeed(): void {
     "marlena.voss@example.com",
     "2025-06-30",
     "2027-06-30",
+    "Lead assessor. Available for multi-day site visits.",
   );
   const aCole = mkAssessor(
     "Darius Cole",
@@ -73,6 +75,7 @@ export function installSeed(): void {
     "darius.cole@example.com",
     "2025-11-06",
     day(26), // expiring soon — demo of the clearance alert
+    "Clearance renewal in progress — new letter expected before the current one expires.",
   );
   const aRaman = mkAssessor(
     "Priya Raman",
@@ -81,6 +84,7 @@ export function installSeed(): void {
     "priya.raman@example.com",
     "2026-02-15",
     "2027-02-15",
+    "Joined February 2026; pairs with a lead assessor on first visits to a campus.",
   );
   const aBeckett = mkAssessor(
     "Tom Beckett",
@@ -89,6 +93,7 @@ export function installSeed(): void {
     "tom.beckett@example.com",
     "2026-09-01",
     "2027-09-01",
+    "Field assessor — covers the west region.",
   );
 
   /* --------------------------------- assessments --------------------------------- */
@@ -356,17 +361,17 @@ export function installSeed(): void {
       scores,
     });
 
-  mkAsset("5.1", "lock", "Door lock hardware — checkpoint 5.1", thisYear - 16, [
+  mkAsset("5.1", "lock", "Building C classroom door locks", thisYear - 16, [
     { assessmentId: "seed_prior_visit", date: "2024-09-11", score: 3, byName: "Marlena Voss" },
     { assessmentId: riverside.id, date: "2025-09-10", score: 2, byName: "Marlena Voss" },
   ]);
-  mkAsset("1.3", "gate", "Gate hardware — checkpoint 1.3", thisYear - 9, [
+  mkAsset("1.3", "gate", "Playground pedestrian gates", thisYear - 9, [
     { assessmentId: riverside.id, date: "2025-09-10", score: 2, byName: "Darius Cole" },
   ]);
-  mkAsset("4.7", "door", "Door / entry — checkpoint 4.7", thisYear - 23, [
+  mkAsset("4.7", "door", "Cafeteria side door", thisYear - 23, [
     { assessmentId: riverside.id, date: "2025-09-10", score: 3, byName: "Darius Cole" },
   ]);
-  mkAsset("8.2", "radio", "Two-way radio — checkpoint 8.2", thisYear - 3, [
+  mkAsset("8.2", "radio", "Two-way radios — front office and hallway monitors", thisYear - 3, [
     { assessmentId: riverside.id, date: "2025-09-10", score: 4, byName: "Marlena Voss" },
   ]);
 
@@ -574,35 +579,41 @@ export function installSeed(): void {
   // hardcoded a legacy key set that matched nothing in the editor,
   // leaving the seeded ASR's checkboxes dead. Never hand-write keys.
   const seedNotes: Record<string, { complete: boolean; note: string }> = {
-    securityAccess: { complete: true, note: "Starter text drafted." },
-    lawEnforcement: { complete: true, note: "Starter text drafted." },
+    securityAccess: {
+      complete: true,
+      note: "Policy statement carried over from last year's ASR and re-drafted.",
+    },
+    lawEnforcement: {
+      complete: true,
+      note: "Drafted — matches the current agreement with city police.",
+    },
     timelyWarning: {
       complete: false,
-      note: "Starter text drafted — verify with campus counsel.",
+      note: "Drafted — campus counsel to review before filing.",
     },
     emergencyResponse: {
       complete: false,
-      note: "Starter text drafted — verify with campus counsel.",
+      note: "Drafted — confirm evacuation routes with Facilities.",
     },
     missingStudent: {
       complete: false,
-      note: "Starter text drafted — verify with campus counsel.",
+      note: "Drafted — confirm the contact-list process with Housing.",
     },
     alcoholDrugs: {
       complete: false,
-      note: "Starter text drafted — verify with campus counsel.",
+      note: "Drafted — align with this year's biennial review.",
     },
     vawaPolicies: {
       complete: false,
-      note: "Starter text drafted — verify with campus counsel.",
+      note: "Drafted — counsel review pending.",
     },
     emergencyNotification: {
       complete: false,
-      note: "Starter text drafted — verify with campus counsel.",
+      note: "Drafted — alert-system test schedule still to confirm.",
     },
     hazingPolicy: {
       complete: false,
-      note: "Starter text drafted — verify with campus counsel.",
+      note: "Drafted — new statement this cycle; counsel review pending.",
     },
   };
   const disclosures: CleryDisclosure[] = DISCLOSURES.map((d) => ({

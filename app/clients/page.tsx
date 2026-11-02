@@ -2,7 +2,7 @@
  * Client score history: pick a client, see their completed assessments
  * as a timeline with a transparent safety score and an SVG trend line.
  *
- * Score formula (shown on the page so it stays auditable):
+ * Score formula (behind the ⓘ beside the score, so it stays auditable):
  *   100 − 10 per high-risk finding − 5 per moderate − 2 per low, floor 0.
  */
 "use client";
@@ -19,6 +19,7 @@ import {
   PageHeader,
   Badge,
   EmptyState,
+  InfoHint,
   inputCls,
 } from "@/components/ui";
 import ProdNotice from "@/components/ProdNotice";
@@ -220,7 +221,7 @@ function ClientsInner() {
                 >
                   {latest.score}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="flex items-center justify-end gap-0.5 text-xs text-slate-500">
                   latest score
                   {delta !== null && (
                     <span
@@ -231,18 +232,17 @@ function ClientsInner() {
                       {delta} vs prior)
                     </span>
                   )}
+                  <InfoHint
+                    label="how the safety score is calculated"
+                    align="right"
+                    text="Score formula: 100 − 10 per high-risk finding − 5 per moderate − 2 per low, floored at 0. Findings come straight from each assessment's checkpoint answers, so the number is fully auditable."
+                  />
                 </p>
               </div>
             </div>
             <div className="mt-4">
               <ScoreTrend entries={entries} />
             </div>
-            <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-500">
-              <span className="font-semibold text-slate-700">Score formula:</span>{" "}
-              100 − 10 per high-risk finding − 5 per moderate − 2 per low,
-              floored at 0. Findings come straight from each assessment's
-              checkpoint answers, so the number is fully auditable.
-            </p>
           </Card>
 
           <Card className="!p-2 md:!p-3">

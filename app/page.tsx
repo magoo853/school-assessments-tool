@@ -63,9 +63,6 @@ function OnboardingCard({ onDismiss }: { onDismiss: () => void }) {
           <h2 className="text-lg font-bold tracking-tight text-slate-900">
             Get started
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Four steps from empty workspace to your first client report.
-          </p>
         </div>
         <button
           type="button"
@@ -309,9 +306,6 @@ export default function DashboardPage() {
             <p className="font-semibold text-violet-900">
               ⏳ Awaiting review ({snap.pendingReview.length})
             </p>
-            <span className="text-xs text-violet-600">
-              Submitted assessments waiting on a decision
-            </span>
           </div>
           <ul className="divide-y divide-violet-100">
             {snap.pendingReview.map((a) => (

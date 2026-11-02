@@ -10,7 +10,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, PageHeader, Badge, Btn, inputCls } from "@/components/ui";
+import { Card, PageHeader, Badge, Btn, InfoHint, inputCls } from "@/components/ui";
 import { useAiEnabled, getAiKey, setAiKey } from "@/lib/aiSettings";
 import {
   getStorageUsage,
@@ -200,12 +200,13 @@ export default function IntegrationsPage() {
         <Card>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">✨ AI drafting</h2>
-            <p className="mt-1 max-w-xl text-sm text-slate-500">
-              Drafts findings, AAR sections, and recommendations from your
-              recorded assessment data. Every draft stays fully editable —
-              the AI writes a first pass, you make the call.
-            </p>
+              <h2 className="flex items-center gap-0.5 text-lg font-bold text-slate-900">
+                ✨ AI drafting
+                <InfoHint
+                  label="how AI drafting works"
+                  text="Drafts findings, AAR sections, and recommendations from your recorded assessment data. Every draft stays fully editable — the AI writes a first pass, you make the call."
+                />
+              </h2>
           </div>
           {statusBadge}
         </div>
@@ -227,8 +228,12 @@ export default function IntegrationsPage() {
 
         {/* Configure the key right here */}
         <div className="mt-5 rounded-xl bg-slate-50 p-4">
-          <p className="text-sm font-semibold text-slate-800">
+          <p className="flex items-center gap-0.5 text-sm font-semibold text-slate-800">
             Add your free AI key
+            <InfoHint
+              label="running AI drafting for a whole team"
+              text="Running this for a whole team? Add the same key once as AI_API_KEY in the Vercel project env vars instead — then every device is covered and no one pastes anything."
+            />
           </p>
           <p className="mt-1 text-sm text-slate-600">
             Get a free key at{" "}
@@ -265,12 +270,6 @@ export default function IntegrationsPage() {
           {keyMsg && (
             <p className="mt-2 text-sm text-slate-600">{keyMsg}</p>
           )}
-          <p className="mt-3 text-xs text-slate-400">
-            Running this for a whole team? Add the same key once as{" "}
-            <code className="rounded bg-white px-1 py-0.5">AI_API_KEY</code>{" "}
-            in the Vercel project env vars instead — then every device is
-            covered and no one pastes anything.
-          </p>
           <Btn
             variant="ghost"
             className="mt-2"
@@ -322,13 +321,13 @@ export default function IntegrationsPage() {
         <Card>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Device storage</h2>
-            <p className="mt-1 max-w-xl text-sm text-slate-500">
-              Assessments and photo evidence live on this device until shared
-              storage lands. Photos are the biggest consumer — when storage
-              fills up, new photos stop saving, so keep an eye on the headroom
-              before a site visit.
-            </p>
+              <h2 className="flex items-center gap-0.5 text-lg font-bold text-slate-900">
+                Device storage
+                <InfoHint
+                  label="how device storage works"
+                  text="Assessments and photo evidence live on this device until shared storage lands. Photos are the biggest consumer — when storage fills up, new photos stop saving, so keep an eye on the headroom before a site visit."
+                />
+              </h2>
             {corruptKeys.length > 0 && (
               <p className="mt-2 max-w-xl rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
                 {corruptKeys.length} saved dataset{corruptKeys.length === 1 ? " was" : "s were"}{" "}

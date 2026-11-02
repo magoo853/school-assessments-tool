@@ -6,7 +6,7 @@ import Link from "next/link";
 import { db } from "@/lib/store";
 import type { CleryReport, CleryStatRow } from "@/lib/store";
 import { useMode } from "@/lib/mode";
-import { Card, PageHeader, Btn, Badge, Field, inputCls, EmptyState, Modal } from "@/components/ui";
+import { Card, PageHeader, Btn, Badge, Field, InfoHint, inputCls, EmptyState, Modal } from "@/components/ui";
 import ProdNotice from "@/components/ProdNotice";
 import {
   GEOS,
@@ -353,7 +353,7 @@ export default function CleryEditorPage() {
       {mode === "prod" && <ProdNotice />}
       <PageHeader
         title={`${report.institution} — ASR ${report.reportYear}`}
-        subtitle={`Statistics cover ${years[0]}–${years[2]}. Unentered cells print as —, never 0.`}
+        info={`Statistics cover ${years[0]}–${years[2]}. Unentered cells print as —, never 0.`}
         actions={
           <>
             <Link href="/reports/clery">
@@ -405,6 +405,10 @@ export default function CleryEditorPage() {
             {y}
           </button>
         ))}
+        <InfoHint
+          label="about these cells"
+          text="Typing 0 asks for explicit confirmation before it is recorded. Green cells are confirmed zeros."
+        />
       </div>
 
       {/* stats grid */}
@@ -451,9 +455,6 @@ export default function CleryEditorPage() {
                   </tbody>
                 </table>
               </div>
-              <p className="mt-2 text-xs text-gray-500">
-                Typing 0 asks for explicit confirmation before it is recorded. Green cells are confirmed zeros.
-              </p>
             </div>
           </details>
         ))}
@@ -461,10 +462,13 @@ export default function CleryEditorPage() {
 
       {/* disclosures checklist */}
       <Card className="mt-6">
-        <h2 className="mb-1 text-lg font-bold">Required policy disclosure statements</h2>
-        <p className="mb-4 text-sm text-gray-500">
-          Track which statements are drafted for the ASR narrative. Checked items appear as ☑ in the generated report.
-        </p>
+        <h2 className="mb-4 flex items-center gap-0.5 text-lg font-bold">
+          Required policy disclosure statements
+          <InfoHint
+            label="about the disclosure statements"
+            text="Track which statements are drafted for the ASR narrative. Checked items appear as ☑ in the generated report."
+          />
+        </h2>
         <div className="space-y-3">
           {DISCLOSURES.map((def) => {
             const d = report.disclosures.find((x) => x.key === def.key);

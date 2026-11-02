@@ -55,6 +55,7 @@ import {
   RiskBadge,
   Badge,
   EmptyState,
+  InfoHint,
   inputCls,
 } from "@/components/ui";
 import ProdNotice from "@/components/ProdNotice";
@@ -520,14 +521,12 @@ function FindingsInner() {
           visible actionable finding at once. Screen-only. */}
       {filtered.length > 0 && (
         <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-3 print:hidden md:p-4">
-          <p className="text-sm font-semibold text-slate-800">
+          <p className="flex items-center gap-0.5 text-sm font-semibold text-slate-800">
             Bulk assign corrective actions
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Applies to the {bulkEligible.length} visible open / in-progress
-            finding{bulkEligible.length === 1 ? "" : "s"} below (current
-            filters). Corrected and verified findings are never changed,
-            and blank fields are left as-is.
+            <InfoHint
+              label="how bulk assign works"
+              text="Applies to the visible open / in-progress findings (current filters). Corrected and verified findings are never changed, and blank fields are left as-is."
+            />
           </p>
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <input
@@ -575,8 +574,12 @@ function FindingsInner() {
         <div className="mb-4 space-y-4 print:hidden">
           {clientFlagged.length > 0 && (
             <div className="rounded-2xl border border-red-200 bg-red-50/60 p-3 md:p-4">
-              <p className="text-sm font-semibold text-red-900">
+              <p className="flex items-center gap-0.5 text-sm font-semibold text-red-900">
                 ⚠ Replacement flags — {clientFilter}
+                <InfoHint
+                  label="how replacement flags are calculated"
+                  text="Basis: install year recorded at a walkthrough touch vs the asset class's expected life. The full asset list is on the school's assessment page and in its reports."
+                />
               </p>
               <ul className="mt-2 space-y-1.5">
                 {clientFlagged.map((a) => {
@@ -591,18 +594,17 @@ function FindingsInner() {
                   );
                 })}
               </ul>
-              <p className="mt-2 text-xs text-red-700">
-                Basis: install year recorded at a walkthrough touch vs the
-                asset class's expected life. The full asset list is on the
-                school's assessment page and in its reports.
-              </p>
             </div>
           )}
 
           <div className="rounded-2xl border border-slate-200 bg-white p-3 md:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-slate-800">
+              <p className="flex items-center gap-0.5 text-sm font-semibold text-slate-800">
                 Remediation programs — {clientFilter}
+                <InfoHint
+                  label="how remediation programs work"
+                  text="A program groups this school's corrective actions under one name and target date; its milestones are the member actions and progress is their verified share. Programs appear in the school's generated reports as the remediation plan. Corrective actions carry no cost fields in this app, so programs roll up counts, owners and dates — no dollars."
+                />
               </p>
               <button
                 type="button"
@@ -615,20 +617,14 @@ function FindingsInner() {
                 {picking ? "Done picking" : "＋ New program from findings"}
               </button>
             </div>
-            <p className="mt-0.5 text-xs text-slate-500">
-              A program groups this school's corrective actions under one
-              name and target date; its milestones are the member actions
-              and progress is their verified share. Programs appear in the
-              school's generated reports as the remediation plan.
-              Corrective actions carry no cost fields in this app, so
-              programs roll up counts, owners and dates — no dollars.
-            </p>
-
             {picking && (
               <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/60 p-3">
-                <p className="text-xs font-medium text-violet-900">
-                  Tick “Program” on the findings below to make them
-                  members, then name the program. {picked.length} picked.
+                <p className="flex items-center gap-0.5 text-xs font-medium text-violet-900">
+                  {picked.length} picked.
+                  <InfoHint
+                    label="how to pick program members"
+                    text="Tick “Program” on the findings below to make them members, then name the program."
+                  />
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <input

@@ -147,7 +147,7 @@ export interface SchoolAsset {
   checkpointKey: string;
   /** Asset class key from lib/assets.ts ASSET_CLASSES. */
   assetClass: string;
-  /** Display label, e.g. "Classroom door locks — checkpoint 5.1". */
+  /** Display label, e.g. "Building C classroom door locks". */
   label: string;
   installYear?: number;
   scores: ConditionScore[];

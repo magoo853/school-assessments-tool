@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { db, nowIso, type ReportDoc } from "@/lib/store";
 import { useMode } from "@/lib/mode";
-import { Btn, Card, EmptyState, Modal, PageHeader, inputCls } from "@/components/ui";
+import { Btn, Card, EmptyState, InfoHint, Modal, PageHeader, inputCls } from "@/components/ui";
 import { deleteReport } from "@/lib/deleteReport";
 import ProdNotice from "@/components/ProdNotice";
 import { REPORT_LABELS, download, slug, buildShareHtml, buildCheckpointIndex } from "@/lib/reports";
@@ -269,6 +269,10 @@ export default function ReportViewPage() {
                 saving.
               </span>
             )}
+            <InfoHint
+              label="about this draft"
+              text="Drafts are pre-filled by the report generator — edit every word before sharing."
+            />
           </div>
           <label htmlFor="report-md" className="sr-only">
             Report markdown
@@ -281,10 +285,6 @@ export default function ReportViewPage() {
             spellCheck={false}
             className={`${inputCls} min-h-[60vh] font-mono text-[13px] leading-relaxed`}
           />
-          <p className="mt-1.5 text-xs text-gray-500">
-            Drafts are pre-filled by the report generator — edit every word
-            before sharing.
-          </p>
         </div>
       )}
 

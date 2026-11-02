@@ -46,8 +46,7 @@ export default function TemplatePickerModal({
     <Modal title={`Change template — ${assessment.clientName}`} onClose={onClose}>
       <div className="space-y-3">
         <p className="text-sm text-slate-600">
-          Pick the walkthrough template this assessment should use. The
-          template decides the checkpoints and domains.
+          Pick the walkthrough template this assessment should use.
         </p>
         <div className="space-y-2">
           {options.map(({ template: t, custom }) => {

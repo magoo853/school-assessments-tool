@@ -100,7 +100,7 @@ export default function CleryListPage() {
       <BackLink href="/reports" label="Reports" />
       <PageHeader
         title="Clery Act ASR Builder"
-        subtitle="An ASR for year Y covers statistics for Y−3 through Y−1."
+        info="An ASR for year Y covers statistics for Y−3 through Y−1."
         actions={<Btn onClick={openNew}>+ New ASR</Btn>}
       />
       {mode === "prod" && <ProdNotice />}
@@ -184,7 +184,7 @@ export default function CleryListPage() {
             {schools.length > 0 && (
               <Field
                 label="School"
-                hint="Schools the app already knows — from assessments, the schedule, and past ASRs."
+                info="Schools the app already knows — from assessments, the schedule, and past ASRs."
               >
                 <select
                   className={inputCls}
@@ -202,7 +202,7 @@ export default function CleryListPage() {
               </Field>
             )}
             {(schools.length === 0 || schoolChoice === "__new" || schoolChoice === "") && (
-              <Field label="Institution" hint={mode === "prod" ? "Legal name of the school or institution this ASR covers." : "Fictional placeholder name for demo work."}>
+              <Field label="Institution" info={mode === "prod" ? "Legal name of the school or institution this ASR covers." : "Fictional placeholder name for demo work."}>
                 <input
                   className={inputCls}
                   value={institution}
@@ -230,7 +230,7 @@ export default function CleryListPage() {
                   </p>
                 );
               })()}
-            <Field label="Report year" hint={`Statistics will cover ${reportYear - 3}–${reportYear - 1}.`}>
+            <Field label="Report year" info={`Statistics will cover ${reportYear - 3}–${reportYear - 1}.`}>
               <input
                 className={inputCls}
                 type="number"

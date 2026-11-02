@@ -10,6 +10,7 @@ import {
   Card,
   ConfirmModal,
   EmptyState,
+  InfoHint,
   PageHeader,
   StatusPill,
 } from "@/components/ui";
@@ -271,11 +272,13 @@ export default function ReportsPage() {
         />
       ) : (
         <Card>
-          <h2 className="font-semibold">1 · Pick assessments</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Tap a school to select it — one for its own reports, or several
-            for a group. Each school keeps its color everywhere on this page.
-          </p>
+          <h2 className="flex items-center gap-0.5 font-semibold">
+            1 · Pick assessments
+            <InfoHint
+              label="how selecting assessments works"
+              text="Tap a school to select it — one for its own reports, or several for a group. Each school keeps its color everywhere on this page."
+            />
+          </h2>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Btn
               variant="ghost"
@@ -428,9 +431,6 @@ export default function ReportsPage() {
       {activeView === "reports" && assessments.length > 0 && (
         <Card>
           <h2 className="font-semibold">2 · Your reports</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Open a generated report to edit, print, or share it.
-          </p>
           <div className="mt-4 space-y-5">
             {assessments.map((a) => {
               const c = schoolColor(a.clientName);
@@ -526,10 +526,13 @@ export default function ReportsPage() {
       )}
       {activeView === "combined" && groupDocs.length > 0 && (
         <Card>
-          <h2 className="font-semibold">🧩 Combined reports</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            District roll-ups generated from a group of selected assessments.
-          </p>
+          <h2 className="flex items-center gap-0.5 font-semibold">
+            🧩 Combined reports
+            <InfoHint
+              label="what combined reports are"
+              text="District roll-ups generated from a group of selected assessments."
+            />
+          </h2>
           <ul className="mt-3 divide-y divide-gray-100">
             {groupDocs.map((doc) => (
               <li key={doc.id}>
@@ -593,11 +596,13 @@ export default function ReportsPage() {
       {activeView === "exports" && (
         <>
           <Card>
-            <h2 className="font-semibold">CSV Exports</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Raw data exports for spreadsheets. Gap statements export as recorded
-          — negative gap wording, never criterion text.
-        </p>
+            <h2 className="flex items-center gap-0.5 font-semibold">
+              CSV Exports
+              <InfoHint
+                label="about the CSV exports"
+                text="Raw data exports for spreadsheets. Gap statements export as recorded — negative gap wording, never criterion text."
+              />
+            </h2>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <Btn
             variant="ghost"
@@ -646,13 +651,13 @@ export default function ReportsPage() {
 
       {/* Code Red Hub exchange export */}
       <Card>
-        <h2 className="font-semibold">Export for Code Red Hub</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Downloads a JSON package the Code Red Hub can import directly —
-          assessments, responses, findings, equipment recommendations,
-          reports, and schedules. Take your data with you if you adopt the
-          Hub later.
-        </p>
+        <h2 className="flex items-center gap-0.5 font-semibold">
+          Export for Code Red Hub
+          <InfoHint
+            label="what the Hub export contains"
+            text="Downloads a JSON package the Code Red Hub can import directly — assessments, responses, findings, equipment recommendations, reports, and schedules."
+          />
+        </h2>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -712,15 +717,13 @@ export default function ReportsPage() {
       {/* Full backup & restore */}
       {activeView === "backup" && (
         <Card>
-          <h2 className="font-semibold">Backup & Restore</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          The current mode's ({mode.toUpperCase()}) dataset on this device —
-          assessments, reports, photos, schedules, templates — plus your
-          profile and branding, in one file. Download it to move to a new
-          phone or keep a safety copy. Restoring a backup replaces only
-          that mode's data; the other mode is untouched. Your AI key is
-          never included in a backup.
-        </p>
+          <h2 className="flex items-center gap-0.5 font-semibold">
+            Backup & Restore
+            <InfoHint
+              label="how backup and restore work"
+              text={`The current mode's (${mode.toUpperCase()}) dataset on this device — assessments, reports, photos, schedules, templates — plus your profile and branding, in one file. Download it to move to a new phone or keep a safety copy. Restoring a backup replaces only that mode's data; the other mode is untouched. Your AI key is never included in a backup.`}
+            />
+          </h2>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Btn
             variant="ghost"

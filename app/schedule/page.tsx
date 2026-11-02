@@ -12,6 +12,7 @@ import {
   ConfirmModal,
   EmptyState,
   Field,
+  InfoHint,
   Modal,
   PageHeader,
   StatusPill,
@@ -45,10 +46,13 @@ function templateLabel(id: string): string {
 function SectionHeading({
   children,
   count,
+  info,
   className = "",
 }: {
   children: string;
   count?: number;
+  /** Explanation for the section, behind an ⓘ beside the heading. */
+  info?: string;
   className?: string;
 }) {
   return (
@@ -65,6 +69,7 @@ function SectionHeading({
           {count}
         </span>
       )}
+      {info && <InfoHint text={info} label={children} />}
     </h2>
   );
 }
@@ -492,12 +497,12 @@ function ReassessmentPanel({
 
   return (
     <Card>
-      <SectionHeading count={dueCount}>Reassessment tracker</SectionHeading>
-      <p className="mt-1 text-sm text-gray-500">
-        Completed assessments start a 12-month reassessment clock. The
-        count is the schools due now (overdue or due within 90 days).
-        Tap a school to schedule its reassessment and assign an assessor.
-      </p>
+      <SectionHeading
+        count={dueCount}
+        info="Completed assessments start a 12-month reassessment clock. The count is the schools due now (overdue or due within 90 days). Tap a school to schedule its reassessment and assign an assessor."
+      >
+        Reassessment tracker
+      </SectionHeading>
       <ul className="mt-3 divide-y divide-gray-100">
         {rows.map((r) => (
           <li key={r.client}>

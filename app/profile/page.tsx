@@ -11,7 +11,7 @@ import { db, uid, type Assessor } from "@/lib/store";
 import { useMode } from "@/lib/mode";
 import { getProfile, setProfile, firstNameOf, type MyProfile } from "@/lib/profile";
 import { useBranding, compressLogo } from "@/lib/branding";
-import { Card, PageHeader, Badge, Btn, Field, inputCls } from "@/components/ui";
+import { Card, PageHeader, Badge, Btn, Field, InfoHint, inputCls } from "@/components/ui";
 
 const CLEARANCE_LABEL: Record<Assessor["clearanceStatus"], { label: string; tone: "green" | "gray" | "red" }> = {
   current: { label: "Clearance current", tone: "green" },
@@ -127,6 +127,7 @@ export default function ProfilePage() {
     <div className="space-y-6">
       <PageHeader
         title="My Profile"
+        info="Profiles live on this device for now. When accounts arrive with the shared database, your profile will follow your login instead."
       />
 
       {/* Current profile */}
@@ -164,11 +165,13 @@ export default function ProfilePage() {
 
       {/* Pick from directory */}
       <Card>
-        <h2 className="font-semibold text-slate-900">I&apos;m in the assessor directory</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Tap your name — your photo, title, and clearance come with your
-          profile.
-        </p>
+        <h2 className="flex items-center gap-0.5 font-semibold text-slate-900">
+          I&apos;m in the assessor directory
+          <InfoHint
+            label="picking yourself from the directory"
+            text="Tap your name — your photo, title, and clearance come with your profile."
+          />
+        </h2>
         {assessors.length === 0 ? (
           <p className="mt-3 text-sm text-slate-400">
             {mode === "prod"
@@ -249,19 +252,17 @@ export default function ProfilePage() {
         <Btn onClick={saveManual} disabled={!name.trim()} className="mt-2">
           Save my profile
         </Btn>
-        <p className="mt-3 text-xs text-slate-400">
-          Profiles live on this device for now. When accounts arrive with the
-          shared database, your profile will follow your login instead.
-        </p>
       </Card>
 
       {/* Report branding (white-label) */}
       <Card>
-        <h2 className="font-semibold text-slate-900">Your business on reports</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Client-ready reports — the print view and shared HTML files — carry
-          your company name and logo, so the work goes out under your brand.
-        </p>
+        <h2 className="flex items-center gap-0.5 font-semibold text-slate-900">
+          Your business on reports
+          <InfoHint
+            label="how report branding works"
+            text="Client-ready reports — the print view and shared HTML files — carry your company name and logo, so the work goes out under your brand."
+          />
+        </h2>
         <div className="mt-3">
           <Field label="Company name">
             <input
