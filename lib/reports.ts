@@ -27,6 +27,16 @@ import {
   type ResponseRow,
 } from "@/lib/store";
 import { fslLabel, populationPoints, sizePoints } from "@/lib/fsl";
+import { caStatusOf } from "./ca";
+import {
+  assetLife,
+  assetsForSchool,
+  latestScore,
+  lifeBasis,
+  schoolKeyOf,
+  scoreTrend,
+} from "./assets";
+import { programRollup, programsForSchool } from "./programs";
 
 import type { AssessmentTemplate } from "@/lib/templates";
 import { photosFor, listPhotos } from "./photos";
@@ -224,6 +234,108 @@ export function draftConclusion(
 }
 
 /* ──────────────────────────────
+ * Facility-model sections (2026-11-02): remediation programs and the
+ * school asset list, rendered into the school's own reports. Both
+ * builders return "" when the school has no such records, so reports
+ * for schools without programs/assets are byte-for-byte what they
+ * were before these sections existed.
+ * ────────────────────────────── */
+
+const CA_REPORT_LABELS: Record<string, string> = {
+  open: "Open",
+  in_progress: "In progress",
+  corrected: "Corrected",
+  verified: "Verified",
+};
+
+const PROGRAM_STATUS_LABELS: Record<string, string> = {
+  planned: "Planned",
+  in_progress: "In progress",
+  completed: "Completed",
+};
+
+/** The school's remediation plan: its programs with member CAs and
+ *  progress derived from their live CA states (lib/programs.ts). */
+export function remediationPlanMd(a: Assessment, heading: string): string {
+  const programs = programsForSchool(schoolKeyOf(a.clientName, a.campus));
+  if (!programs.length) return "";
+  const findings = db.findings.list();
+  const assessments = db.assessments.list();
+  const L: string[] = [`## ${heading}`, ""];
+  for (const p of programs) {
+    // Pin members to THIS report's assessment so the plan printed here
+    // reconciles with the findings printed here (see resolveMembers).
+    const r = programRollup(p, findings, assessments, a.id);
+    L.push(`### ${p.title}`);
+    L.push("");
+    L.push(
+      `- **Status:** ${PROGRAM_STATUS_LABELS[p.status] ?? p.status}` +
+        (p.targetDate ? ` · **Target:** ${p.targetDate}` : "") +
+        (p.status === "completed" && p.completedBy
+          ? ` · completed by ${p.completedBy}${p.completedAt ? ` on ${p.completedAt.slice(0, 10)}` : ""}`
+          : "")
+    );
+    L.push(
+      `- **Progress:** ${r.summary.verified} of ${r.summary.total} corrective actions verified (${r.pctVerified}%) · ${r.summary.corrected} corrected · ${r.summary.actionable} still open/in progress` +
+        (r.summary.overdue ? ` · ⚠ ${r.summary.overdue} overdue` : "") +
+        (r.nextDue ? ` · next due ${r.nextDue}` : "")
+    );
+    if (r.owners.length) L.push(`- **Owners:** ${r.owners.join(", ")}`);
+    L.push("");
+    if (!r.members.length) {
+      L.push("No corrective actions are currently recorded for this program's checkpoints.");
+      L.push("");
+      continue;
+    }
+    for (const f of r.members) {
+      L.push(
+        `- [${CA_REPORT_LABELS[caStatusOf(f)] ?? caStatusOf(f)}] ${f.gapText}` +
+          (f.caOwner ? ` — owner: ${f.caOwner}` : "") +
+          (f.caDueDate ? ` · due ${f.caDueDate}` : "")
+      );
+    }
+    L.push("");
+  }
+  return L.join("\n");
+}
+
+/** The school's asset list with condition trend and the replacement
+ *  forecast: end-of-life assets carry a "replace, don't repair" note
+ *  with its basis (age vs the class's expected life). */
+export function assetConditionMd(a: Assessment, heading: string): string {
+  const assets = assetsForSchool(schoolKeyOf(a.clientName, a.campus));
+  if (!assets.length) return "";
+  const year = new Date().getFullYear();
+  const L: string[] = [`## ${heading}`, ""];
+  for (const asset of assets) {
+    const latest = latestScore(asset);
+    const trend = scoreTrend(asset);
+    const life = assetLife(asset, year);
+    let line = `- **${asset.label}** — `;
+    line += latest
+      ? `condition ${latest.score}/5 at the latest touch (${latest.date.slice(0, 10)})${trend ? ` · trend ${trend}` : ""}`
+      : "no condition score recorded yet";
+    if (asset.installYear) {
+      line += ` · ${lifeBasis(asset, year)} · remaining life ${life.remaining} yr${life.remaining === 1 ? "" : "s"}`;
+    } else {
+      line += " · install year not recorded — no remaining-life estimate";
+    }
+    L.push(line);
+    if (life.state === "past") {
+      L.push(
+        `  - ⚠ **Replace, don't repair** — this asset is past its ${life.expected}-yr expected life (${lifeBasis(asset, year)}). Further repair spend should be weighed against replacement.`
+      );
+    } else if (life.state === "near") {
+      L.push(
+        `  - ⚠ **Plan replacement** — about ${life.remaining} yr${life.remaining === 1 ? "" : "s"} of expected life remain (${lifeBasis(asset, year)}).`
+      );
+    }
+  }
+  L.push("");
+  return L.join("\n");
+}
+
+/* ──────────────────────────────
  * Report markdown builders
  * ────────────────────────────── */
 
@@ -247,6 +359,12 @@ export function buildAarMarkdown(
     equipment.filter((e) => e.findingId === f.id);
   const unlinkedEquipment = equipment.filter(
     (e) => !e.findingId || !findings.some((f) => f.id === e.findingId)
+  );
+
+  const planMd = remediationPlanMd(a, "Appendix — Remediation Plan");
+  const assetMd = assetConditionMd(
+    a,
+    "Appendix — Asset Condition & Replacement Forecast"
   );
 
   const L: string[] = [];
@@ -274,6 +392,15 @@ export function buildAarMarkdown(
   L.push("7. [Conclusion](#conclusion)");
   L.push("8. [Executive Certification](#executive-certification)");
   L.push("9. [Appendix — Prioritized Corrective Action Plan](#appendix--prioritized-corrective-action-plan)");
+  let tocN = 9;
+  if (planMd)
+    L.push(
+      `${++tocN}. [Appendix — Remediation Plan](#appendix--remediation-plan)`
+    );
+  if (assetMd)
+    L.push(
+      `${++tocN}. [Appendix — Asset Condition & Replacement Forecast](#appendix--asset-condition--replacement-forecast)`
+    );
   L.push("");
 
   L.push("## Purpose of the Report");
@@ -435,6 +562,9 @@ export function buildAarMarkdown(
     }
   }
 
+  if (planMd) L.push(planMd);
+  if (assetMd) L.push(assetMd);
+
   return L.join("\n");
 }
 
@@ -479,8 +609,13 @@ export function buildFindingsMarkdown(
   );
   L.push("");
 
+  const planMd = remediationPlanMd(a, "Remediation Plan");
+  const assetMd = assetConditionMd(a, "Asset Condition & Replacement Forecast");
+
   if (!sorted.length) {
     L.push("No findings were documented during this walkthrough.");
+    if (planMd) L.push("", planMd);
+    if (assetMd) L.push(assetMd);
     return L.join("\n");
   }
 
@@ -495,6 +630,9 @@ export function buildFindingsMarkdown(
     L.push(`- **Recommendation:** ${orDash(f.recommendation)}`);
     L.push("");
   });
+
+  if (planMd) L.push(planMd);
+  if (assetMd) L.push(assetMd);
 
   return L.join("\n");
 }
@@ -565,6 +703,9 @@ export function buildRecommendationsMarkdown(
       L.push("");
     }
   }
+
+  const assetMd = assetConditionMd(a, "Asset Condition & Replacement Forecast");
+  if (assetMd) L.push(assetMd);
 
   return L.join("\n");
 }

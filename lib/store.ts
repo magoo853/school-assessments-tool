@@ -107,6 +107,77 @@ export interface Finding {
   caDueDate?: string; // YYYY-MM-DD
   caVerifiedAt?: string;
   caVerifiedBy?: string;
+  /** Coded close-out (2026-11-02): what was wrong / what was done, in
+   *  code-list form (lib/ca.ts CA_ISSUE_CODES / CA_REMEDY_CODES) so
+   *  close-outs aggregate instead of living only in free text. Set when
+   *  a CA is marked corrected/verified; the note fields stay as-is. */
+  caIssueCode?: string;
+  caRemedyCode?: string;
+}
+
+/** One condition observation of a school asset, recorded at a touch
+ *  (a walkthrough). History is its own record: reassessment copies
+ *  answers forward but never touches this list, so the trend across
+ *  visits survives (lib/assets.ts). */
+export interface ConditionScore {
+  assessmentId: ID;
+  /** ISO timestamp of the observation. */
+  date: string;
+  /** 1 (failed / end of service) – 5 (like new). */
+  score: number;
+  /** Assessor name snapshot (profile name — no accounts yet). */
+  byName?: string;
+}
+
+/**
+ * A physical asset on ONE school's list (client + campus), keyed to the
+ * template checkpoint that concerns it. Created the first time an
+ * assessor records a condition score (or install year) at that
+ * checkpoint; expected life comes from the asset class table in
+ * lib/assets.ts. Per-school by design — this app has no district
+ * rollup, and deleting one assessment must not delete the school's
+ * longitudinal asset record.
+ */
+export interface SchoolAsset {
+  id: ID;
+  /** `${clientName}\n${campus}` — see schoolKeyOf in lib/assets.ts. */
+  schoolKey: string;
+  clientName: string;
+  campus: string;
+  checkpointKey: string;
+  /** Asset class key from lib/assets.ts ASSET_CLASSES. */
+  assetClass: string;
+  /** Display label, e.g. "Classroom door locks — checkpoint 5.1". */
+  label: string;
+  installYear?: number;
+  scores: ConditionScore[];
+}
+
+export type ProgramStatus = "planned" | "in_progress" | "completed";
+
+/**
+ * A per-school remediation program: a named grouping of the school's
+ * corrective actions (by checkpoint key, so membership survives
+ * finding re-derivation and reassessment). Milestones ARE the member
+ * CAs — progress derives from their CA states (lib/programs.ts). CAs
+ * carry no cost fields in this app, so a program rolls up counts,
+ * states, owners and dates only — no dollar figures are invented.
+ * createdBy/completedBy are name snapshots, the same honest-workflow
+ * record the review flow uses (lib/review.ts).
+ */
+export interface RemediationProgram {
+  id: ID;
+  schoolKey: string;
+  clientName: string;
+  campus: string;
+  title: string;
+  status: ProgramStatus;
+  targetDate?: string; // YYYY-MM-DD
+  checkpointKeys: string[];
+  createdBy: string;
+  createdAt: string;
+  completedBy?: string;
+  completedAt?: string;
 }
 
 export interface EquipmentItem {
@@ -268,6 +339,8 @@ export const TABLE_BASES = [
   "policy_docs",
   "custom_templates",
   "fsl_records",
+  "assets",
+  "programs",
 ] as const;
 
 let migrationDone = false;
@@ -454,6 +527,8 @@ export const db = {
   policyDocs: new Table<PolicyDoc>("policy_docs"),
   customTemplates: new Table<CustomTemplate>("custom_templates"),
   fslRecords: new Table<FslRecord>("fsl_records"),
+  assets: new Table<SchoolAsset>("assets"),
+  programs: new Table<RemediationProgram>("programs"),
 };
 
 /**

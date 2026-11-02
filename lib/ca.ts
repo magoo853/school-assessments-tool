@@ -65,6 +65,46 @@ export function summarizeCa(
   return summary;
 }
 
+/**
+ * Coded close-outs (2026-11-02): when a corrective action is marked
+ * corrected/verified, the closer can record WHAT WAS WRONG and WHAT
+ * WAS DONE from these code lists (stored on Finding.caIssueCode /
+ * caRemedyCode). Codes are the aggregation layer — the free-text note
+ * stays for the detail. Lists are deliberately short and physical:
+ * this app's CAs are campus-safety items, not IT tickets.
+ */
+export const CA_ISSUE_CODES: Record<string, string> = {
+  hardware_failed: "Hardware failed",
+  hardware_damaged_worn: "Hardware damaged / worn out",
+  hardware_missing: "Hardware missing / never installed",
+  misadjusted: "Present but misadjusted / misaligned",
+  propped_or_bypassed: "Defeated in use (propped, bypassed, disabled)",
+  policy_gap: "Policy / procedure missing or out of date",
+  staffing_gap: "Staffing / coverage gap",
+  training_gap: "Training / awareness gap",
+  other: "Other (see note)",
+};
+
+export const CA_REMEDY_CODES: Record<string, string> = {
+  repaired: "Repaired in place",
+  replaced: "Replaced with new hardware",
+  installed_new: "Installed new (was missing)",
+  adjusted: "Adjusted / realigned / reconfigured",
+  policy_adopted: "Policy adopted / updated",
+  staff_assigned: "Staff assigned / coverage changed",
+  training_completed: "Training completed",
+  removed_hazard: "Hazard removed",
+  other: "Other (see note)",
+};
+
+export function caIssueLabel(code: string | undefined): string {
+  return code ? (CA_ISSUE_CODES[code] ?? code) : "";
+}
+
+export function caRemedyLabel(code: string | undefined): string {
+  return code ? (CA_REMEDY_CODES[code] ?? code) : "";
+}
+
 const RISK_ORDER: Record<string, number> = { high: 0, moderate: 1, low: 2 };
 
 /**

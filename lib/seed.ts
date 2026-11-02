@@ -8,6 +8,7 @@
  */
 import { db, uid, nowIso } from "./store";
 import { getTemplate } from "./templates";
+import { schoolKeyOf } from "./assets";
 import { DISCLOSURES } from "./clery";
 import type {
   Assessment,
@@ -291,6 +292,83 @@ export function installSeed(): void {
     "moderate",
     f3.id,
   );
+
+  /* ---------------- corrective-action states (demo of the tracker) ---------------- */
+
+  db.findings.upsert({
+    ...f1,
+    caStatus: "in_progress",
+    caOwner: "District Facilities — R. Alvarez",
+    caDueDate: day(21),
+  });
+  db.findings.upsert({
+    ...f2,
+    caStatus: "corrected",
+    caOwner: "District Facilities — R. Alvarez",
+    caDueDate: day(-4),
+    caIssueCode: "hardware_damaged_worn",
+    caRemedyCode: "replaced",
+  });
+  db.findings.upsert({
+    ...f3,
+    caStatus: "in_progress",
+    caOwner: "Front Office — D. Nguyen",
+    caDueDate: day(14),
+  });
+
+  /* ------------- remediation program + school asset list (2026-11-02) ------------- */
+  // Riverside's three physical-security findings grouped as one
+  // program; the asset list carries condition scores recorded at the
+  // walkthrough touches, with install years — the Building C lock
+  // hardware is past its 15-year expected life, so it flags
+  // "replace, don't repair" in Riverside's reports.
+
+  db.programs.upsert({
+    id: uid("prg"),
+    schoolKey: schoolKeyOf("Riverside Elementary", "Main campus"),
+    clientName: "Riverside Elementary",
+    campus: "Main campus",
+    title: "Perimeter & classroom security — 2026–27",
+    status: "in_progress",
+    targetDate: day(45),
+    checkpointKeys: ["5.1", "1.3", "4.7"],
+    createdBy: "Marlena Voss",
+    createdAt: now,
+  });
+
+  const thisYear = new Date().getFullYear();
+  const mkAsset = (
+    checkpointKey: string,
+    assetClass: string,
+    label: string,
+    installYear: number,
+    scores: { assessmentId: string; date: string; score: number; byName?: string }[],
+  ) =>
+    db.assets.upsert({
+      id: uid("ast"),
+      schoolKey: schoolKeyOf("Riverside Elementary", "Main campus"),
+      clientName: "Riverside Elementary",
+      campus: "Main campus",
+      checkpointKey,
+      assetClass,
+      label,
+      installYear,
+      scores,
+    });
+
+  mkAsset("5.1", "lock", "Door lock hardware — checkpoint 5.1", thisYear - 16, [
+    { assessmentId: "seed_prior_visit", date: "2024-09-11", score: 3, byName: "Marlena Voss" },
+    { assessmentId: riverside.id, date: "2025-09-10", score: 2, byName: "Marlena Voss" },
+  ]);
+  mkAsset("1.3", "gate", "Gate hardware — checkpoint 1.3", thisYear - 9, [
+    { assessmentId: riverside.id, date: "2025-09-10", score: 2, byName: "Darius Cole" },
+  ]);
+  mkAsset("4.7", "door", "Door / entry — checkpoint 4.7", thisYear - 23, [
+    { assessmentId: riverside.id, date: "2025-09-10", score: 3, byName: "Darius Cole" },
+  ]);
+  mkAsset("8.2", "radio", "Two-way radio — checkpoint 8.2", thisYear - 3, [
+    { assessmentId: riverside.id, date: "2025-09-10", score: 4, byName: "Marlena Voss" },
+  ]);
 
   /* ----------------------------------- reports ----------------------------------- */
 

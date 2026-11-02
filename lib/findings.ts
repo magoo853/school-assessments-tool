@@ -93,6 +93,8 @@ export function deriveFindings(assessmentId: string): Finding[] {
     if (pf.caDueDate) ca.caDueDate = pf.caDueDate;
     if (pf.caVerifiedAt) ca.caVerifiedAt = pf.caVerifiedAt;
     if (pf.caVerifiedBy) ca.caVerifiedBy = pf.caVerifiedBy;
+    if (pf.caIssueCode) ca.caIssueCode = pf.caIssueCode;
+    if (pf.caRemedyCode) ca.caRemedyCode = pf.caRemedyCode;
     if (Object.keys(ca).length) caByKey.set(pf.checkpointKey, ca);
   }
 

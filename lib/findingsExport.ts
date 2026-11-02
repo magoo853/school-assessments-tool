@@ -21,7 +21,13 @@
  */
 
 import type { CaStatus, Finding } from "./store";
-import { caStatusOf, isCaOverdue, todayStr } from "./ca";
+import {
+  caIssueLabel,
+  caRemedyLabel,
+  caStatusOf,
+  isCaOverdue,
+  todayStr,
+} from "./ca";
 
 /** A register row: a finding plus the fields /findings resolves for it. */
 export interface FindingExportRow {
@@ -61,6 +67,8 @@ export const FINDINGS_CSV_HEADER = [
   "overdue",
   "ca_verified_at",
   "ca_verified_by",
+  "ca_issue_code",
+  "ca_remedy_code",
 ] as const;
 
 /**
@@ -91,6 +99,8 @@ export function buildFindingsCsv(
       isCaOverdue(f, today) ? "yes" : "no",
       f.caVerifiedAt ?? "",
       f.caVerifiedBy ?? "",
+      caIssueLabel(f.caIssueCode),
+      caRemedyLabel(f.caRemedyCode),
     ]);
   }
   return lines.map((l) => l.map(csvCell).join(",")).join("\r\n");
@@ -153,5 +163,7 @@ export function caPrintLine(f: Finding, today: string = todayStr()): string {
       `Verified ${f.caVerifiedAt.slice(0, 10)}${f.caVerifiedBy ? ` by ${f.caVerifiedBy}` : ""}`
     );
   }
+  if (f.caIssueCode) parts.push(`Wrong: ${caIssueLabel(f.caIssueCode)}`);
+  if (f.caRemedyCode) parts.push(`Done: ${caRemedyLabel(f.caRemedyCode)}`);
   return parts.join(" · ");
 }

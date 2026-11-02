@@ -45,6 +45,19 @@ import {
 import { getProfile } from "@/lib/profile";
 import { domainViews } from "@/lib/walkthroughFilter";
 import {
+  assetClassForCheckpoint,
+  assetClassLabel,
+  assetForCheckpoint,
+  assetLife,
+  assetsForSchool,
+  latestScore,
+  lifeBasis,
+  recordCondition,
+  schoolKeyOf,
+  scoreTrend,
+  setInstallYear,
+} from "@/lib/assets";
+import {
   Card,
   BackLink,
   PageHeader,
@@ -260,16 +273,31 @@ function RiskSeg({
 /* Checkpoint card                                                     */
 /* ------------------------------------------------------------------ */
 
+export interface AssetTouch {
+  assetClass: string;
+  /** This visit's recorded score, if any. */
+  currentScore: number | null;
+  /** Latest score from any visit + its date, for the trend line. */
+  lastScore: number | null;
+  lastDate?: string;
+  installYear: number | null;
+}
+
 function CheckpointCard({
   checkpoint,
   response,
   onSave,
+  assetTouch,
+  onCondition,
 }: {
   checkpoint: Checkpoint;
   response: ResponseRow | undefined;
   onSave: (patch: Partial<ResponseRow>) => void;
+  assetTouch?: AssetTouch | null;
+  onCondition?: (score: number | null, installYear: number | null) => void;
 }) {
   const answer = response?.answer ?? null;
+  const [yearDraft, setYearDraft] = useState<string | null>(null);
   return (
     <Card>
       <div className="flex items-start gap-2">
@@ -339,6 +367,81 @@ function CheckpointCard({
             onChange={(photoIds) => onSave({ photoIds })}
           />
         </Field>
+        {assetTouch && onCondition && (
+          <Field
+            label={`Asset condition — ${assetClassLabel(assetTouch.assetClass)} (optional)`}
+            hint="You're standing in front of it: score its condition and, if a plate or record shows it, the install year. Scores build the school's asset list and its replacement forecast — they are kept per visit, so a reassessment adds to the trend instead of replacing it."
+          >
+            <div
+              className="flex flex-wrap items-center gap-2"
+              role="radiogroup"
+              aria-label="Asset condition score"
+            >
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  role="radio"
+                  aria-checked={assetTouch.currentScore === n}
+                  onClick={() => onCondition(n, assetTouch.installYear)}
+                  className={`min-h-[44px] min-w-[44px] rounded-lg border px-3 text-sm font-bold transition active:scale-[0.98] ${
+                    assetTouch.currentScore === n
+                      ? "border-violet-600 bg-violet-600 text-white"
+                      : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+              {assetTouch.currentScore != null && (
+                <button
+                  type="button"
+                  onClick={() => onCondition(null, assetTouch.installYear)}
+                  className="min-h-[44px] rounded-lg px-2 text-xs font-semibold text-slate-500 underline hover:text-slate-700"
+                >
+                  Clear this visit's score
+                </button>
+              )}
+              <span className="text-xs text-slate-500">
+                1 = failed / end of service · 5 = like new
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <label className="text-xs font-medium text-slate-500">
+                Install year
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1950}
+                  max={new Date().getFullYear()}
+                  placeholder="e.g. 2014"
+                  value={yearDraft ?? (assetTouch.installYear?.toString() ?? "")}
+                  onChange={(e) => setYearDraft(e.target.value)}
+                  onBlur={() => {
+                    if (yearDraft === null) return;
+                    const y = parseInt(yearDraft, 10);
+                    onCondition(
+                      assetTouch.currentScore,
+                      Number.isFinite(y) ? y : null
+                    );
+                    setYearDraft(null);
+                  }}
+                  aria-label="Asset install year"
+                  className="ml-2 min-h-[44px] w-28 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                />
+              </label>
+              {assetTouch.lastScore != null &&
+                assetTouch.currentScore == null && (
+                  <span className="text-xs text-slate-500">
+                    Last visit: {assetTouch.lastScore}/5
+                    {assetTouch.lastDate
+                      ? ` · ${assetTouch.lastDate.slice(0, 10)}`
+                      : ""}
+                  </span>
+                )}
+            </div>
+          </Field>
+        )}
       </div>
     </Card>
   );
@@ -753,6 +856,124 @@ function ReviewPanel({
         </Modal>
       )}
     </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* School asset list — condition history + remaining life for this     */
+/* school (client + campus). The records live in db.assets, keyed to   */
+/* the school, so they persist across visits: a reassessment adds a    */
+/* score to the trend, it never replaces the history.                  */
+/* ------------------------------------------------------------------ */
+
+function SchoolAssetRow({
+  assetId,
+  locked,
+  onChanged,
+}: {
+  assetId: string;
+  locked: boolean;
+  onChanged: () => void;
+}) {
+  const [yearDraft, setYearDraft] = useState<string | null>(null);
+  const asset = db.assets.get(assetId);
+  if (!asset) return null;
+  const year = new Date().getFullYear();
+  const life = assetLife(asset, year);
+  const latest = latestScore(asset);
+  const trend = scoreTrend(asset);
+  return (
+    <li className="py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-semibold text-slate-900">{asset.label}</p>
+        <Badge tone="gray">{assetClassLabel(asset.assetClass)}</Badge>
+        {life.state === "past" && (
+          <Badge tone="red">⚠ Replace — past expected life</Badge>
+        )}
+        {life.state === "near" && (
+          <Badge tone="amber">Plan replacement — {life.remaining} yr left</Badge>
+        )}
+      </div>
+      <p className="mt-1 text-xs text-slate-500">
+        {latest
+          ? `Condition ${latest.score}/5 · latest ${latest.date.slice(0, 10)}${latest.byName ? ` by ${latest.byName}` : ""}${trend ? ` · trend ${trend}` : ""} (${asset.scores.length} visit${asset.scores.length === 1 ? "" : "s"})`
+          : "No condition score recorded yet"}
+      </p>
+      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+        <span>
+          {asset.installYear
+            ? lifeBasis(asset, year) +
+              ` · remaining life ${life.remaining} yr${life.remaining === 1 ? "" : "s"}`
+            : "Install year not recorded — no remaining-life estimate"}
+        </span>
+        {!locked && (
+          <label className="font-medium">
+            Install year
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1950}
+              max={year}
+              placeholder="yyyy"
+              value={yearDraft ?? (asset.installYear?.toString() ?? "")}
+              onChange={(e) => setYearDraft(e.target.value)}
+              onBlur={() => {
+                if (yearDraft === null) return;
+                const y = parseInt(yearDraft, 10);
+                setInstallYear(asset.id, Number.isFinite(y) ? y : null);
+                setYearDraft(null);
+                onChanged();
+              }}
+              aria-label={`Install year for ${asset.label}`}
+              className="ml-1 min-h-[36px] w-24 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
+            />
+          </label>
+        )}
+      </div>
+      {life.state === "past" && (
+        <p className="mt-1 text-xs font-medium text-red-700">
+          Replace, don't repair — {lifeBasis(asset, year)}. This flag and
+          its basis appear in the school's reports.
+        </p>
+      )}
+    </li>
+  );
+}
+
+function SchoolAssetsCard({
+  assessment,
+  locked,
+  onChanged,
+}: {
+  assessment: Assessment;
+  locked: boolean;
+  onChanged: () => void;
+}) {
+  const assets = assetsForSchool(
+    schoolKeyOf(assessment.clientName, assessment.campus)
+  );
+  if (!assets.length) return null;
+  return (
+    <Card className="mb-4">
+      <h2 className="text-sm font-semibold text-slate-800">
+        School assets — condition &amp; remaining life
+      </h2>
+      <p className="mt-0.5 text-xs text-slate-500">
+        Recorded at the walkthrough checkpoints for {assessment.clientName}{" "}
+        ({assessment.campus}). Scores accumulate across visits; install
+        years drive the replacement forecast in this school's reports.
+      </p>
+      <ul className="divide-y divide-slate-100">
+        {assets.map((a) => (
+          <SchoolAssetRow
+            key={a.id}
+            assetId={a.id}
+            locked={locked}
+            onChanged={onChanged}
+          />
+        ))}
+      </ul>
+    </Card>
   );
 }
 
@@ -1278,14 +1499,56 @@ export default function TakerPage() {
                     </Badge>
                   </div>
                   <div className="space-y-3">
-                    {v.checkpoints.map((c) => (
-                      <CheckpointCard
-                        key={c.key}
-                        checkpoint={c}
-                        response={responses[c.key]}
-                        onSave={(patch) => saveResponse(c.key, patch)}
-                      />
-                    ))}
+                    {v.checkpoints.map((c) => {
+                      const cls = assetClassForCheckpoint(c);
+                      const asset = cls
+                        ? assetForCheckpoint(
+                            schoolKeyOf(
+                              assessment.clientName,
+                              assessment.campus
+                            ),
+                            c.key
+                          )
+                        : undefined;
+                      const latest = asset ? latestScore(asset) : null;
+                      const touch: AssetTouch | null = cls
+                        ? {
+                            assetClass: cls,
+                            currentScore:
+                              asset?.scores.find(
+                                (s) => s.assessmentId === assessment.id
+                              )?.score ?? null,
+                            lastScore: latest?.score ?? null,
+                            lastDate: latest?.date,
+                            installYear: asset?.installYear ?? null,
+                          }
+                        : null;
+                      return (
+                        <CheckpointCard
+                          key={c.key}
+                          checkpoint={c}
+                          response={responses[c.key]}
+                          onSave={(patch) => saveResponse(c.key, patch)}
+                          assetTouch={touch}
+                          onCondition={
+                            cls
+                              ? (score, year) => {
+                                  recordCondition({
+                                    assessment,
+                                    checkpointKey: c.key,
+                                    checkpointNum: c.num,
+                                    assetClass: cls,
+                                    score,
+                                    installYear: year,
+                                    byName: getProfile()?.name ?? "",
+                                  });
+                                  setTick((t) => t + 1);
+                                }
+                              : undefined
+                          }
+                        />
+                      );
+                    })}
                   </div>
                 </section>
               );
@@ -1316,6 +1579,12 @@ export default function TakerPage() {
           </div>
         </>
       )}
+
+      <SchoolAssetsCard
+        assessment={assessment}
+        locked={locked}
+        onChanged={() => setTick((t) => t + 1)}
+      />
 
       {/* Danger zone */}
       {!locked && (

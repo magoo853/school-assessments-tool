@@ -10,8 +10,27 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { db, type Finding, type Risk, type CaStatus } from "@/lib/store";
-import { caStatusOf, isCaOverdue } from "@/lib/ca";
+import {
+  db,
+  type Finding,
+  type Risk,
+  type CaStatus,
+  type ProgramStatus,
+} from "@/lib/store";
+import {
+  CA_ISSUE_CODES,
+  CA_REMEDY_CODES,
+  caStatusOf,
+  isCaOverdue,
+} from "@/lib/ca";
+import {
+  createProgram,
+  programRollup,
+  programsForClient,
+  setProgramStatus,
+  setProgramTargetDate,
+} from "@/lib/programs";
+import { assetLife, lifeBasis } from "@/lib/assets";
 import {
   isBulkAssignable,
   normalizeBulkPatch,
@@ -113,6 +132,7 @@ function FindingThumbs({
 interface FindingRow {
   finding: Finding;
   clientName: string;
+  campus: string;
   date: string;
   completedAt?: string;
   domainName: string;
@@ -130,6 +150,7 @@ function loadRows(): FindingRow[] {
       return {
         finding: f,
         clientName: a?.clientName ?? "—",
+        campus: a?.campus ?? "",
         date: (a?.completedAt ?? a?.createdAt ?? "").slice(0, 10),
         completedAt: a?.completedAt,
         domainName: hit?.domain.name ?? "—",
@@ -177,6 +198,13 @@ function FindingsInner() {
   const [bulkOwner, setBulkOwner] = useState("");
   const [bulkDue, setBulkDue] = useState("");
   const [bulkMsg, setBulkMsg] = useState("");
+  // Remediation programs (per school — shown when one client is picked)
+  const [progTitle, setProgTitle] = useState("");
+  const [progTarget, setProgTarget] = useState("");
+  const [progCampus, setProgCampus] = useState("");
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [progMsg, setProgMsg] = useState("");
 
   useEffect(() => {
     setRows(loadRows());
@@ -249,6 +277,12 @@ function FindingsInner() {
     } else if (patch.caStatus) {
       next.caVerifiedAt = undefined;
       next.caVerifiedBy = undefined;
+      // Reopening a CA retires its close-out codes — they described a
+      // fix that is no longer claimed.
+      if (patch.caStatus === "open" || patch.caStatus === "in_progress") {
+        next.caIssueCode = undefined;
+        next.caRemedyCode = undefined;
+      }
     }
     db.findings.upsert(next);
     setRows(loadRows());
@@ -282,6 +316,62 @@ function FindingsInner() {
           : ""
       }.`
     );
+  };
+
+  // Per-school facility-model data for the selected client: its
+  // remediation programs (progress derived live from member CAs) and
+  // its end-of-life asset flags. Read fresh each render — every
+  // mutation path on this page ends in setRows(loadRows()).
+  const clientRows =
+    clientFilter === "all"
+      ? []
+      : rows.filter((r) => r.clientName === clientFilter);
+  const clientCampuses = Array.from(
+    new Set(clientRows.map((r) => r.campus))
+  ).sort();
+  const schoolPrograms =
+    clientFilter === "all" ? [] : programsForClient(clientFilter);
+  const allFindings = db.findings.list();
+  const allAssessments = db.assessments.list();
+  const clientFlagged =
+    clientFilter === "all"
+      ? []
+      : db.assets
+          .filter((a) => a.clientName === clientFilter)
+          .filter((a) => {
+            const s = assetLife(a).state;
+            return s === "past" || s === "near";
+          });
+
+  const doCreateProgram = () => {
+    const campus = progCampus || clientCampuses[0] || "";
+    const keys = picked.filter((k) =>
+      clientRows.some(
+        (r) => r.campus === campus && r.finding.checkpointKey === k
+      )
+    );
+    const p = createProgram({
+      clientName: clientFilter,
+      campus,
+      title: progTitle,
+      targetDate: progTarget || undefined,
+      checkpointKeys: keys,
+      createdBy: getProfile()?.name ?? "",
+    });
+    if (!p) {
+      setProgMsg(
+        "A program needs a title, at least one picked member finding for the campus, and your name — set it in My Profile."
+      );
+      return;
+    }
+    setProgTitle("");
+    setProgTarget("");
+    setPicked([]);
+    setPicking(false);
+    setProgMsg(
+      `Program “${p.title}” created — ${keys.length} member corrective action${keys.length === 1 ? "" : "s"}. It appears in ${clientFilter}'s generated reports as the remediation plan.`
+    );
+    setRows(loadRows());
   };
 
   const printCounts = exportCounts(filtered);
@@ -479,6 +569,222 @@ function FindingsInner() {
         </div>
       )}
 
+      {/* Per-school facility model: replacement flags + remediation
+          programs for the selected client. Screen-only. */}
+      {clientFilter !== "all" && (
+        <div className="mb-4 space-y-4 print:hidden">
+          {clientFlagged.length > 0 && (
+            <div className="rounded-2xl border border-red-200 bg-red-50/60 p-3 md:p-4">
+              <p className="text-sm font-semibold text-red-900">
+                ⚠ Replacement flags — {clientFilter}
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {clientFlagged.map((a) => {
+                  const life = assetLife(a);
+                  return (
+                    <li key={a.id} className="text-sm text-red-800">
+                      <strong>{a.label}</strong> ({a.campus}) —{" "}
+                      {life.state === "past"
+                        ? `replace, don't repair: ${lifeBasis(a)} · past its ${life.expected}-yr expected life`
+                        : `plan replacement: ${lifeBasis(a)} · about ${life.remaining} yr of expected life left`}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="mt-2 text-xs text-red-700">
+                Basis: install year recorded at a walkthrough touch vs the
+                asset class's expected life. The full asset list is on the
+                school's assessment page and in its reports.
+              </p>
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 md:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-slate-800">
+                Remediation programs — {clientFilter}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setPicking((v) => !v);
+                  setProgMsg("");
+                }}
+                className="min-h-[44px] rounded-xl border border-violet-300 px-4 text-sm font-semibold text-violet-700 hover:bg-violet-50"
+              >
+                {picking ? "Done picking" : "＋ New program from findings"}
+              </button>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-500">
+              A program groups this school's corrective actions under one
+              name and target date; its milestones are the member actions
+              and progress is their verified share. Programs appear in the
+              school's generated reports as the remediation plan.
+              Corrective actions carry no cost fields in this app, so
+              programs roll up counts, owners and dates — no dollars.
+            </p>
+
+            {picking && (
+              <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/60 p-3">
+                <p className="text-xs font-medium text-violet-900">
+                  Tick “Program” on the findings below to make them
+                  members, then name the program. {picked.length} picked.
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={progTitle}
+                    onChange={(e) => setProgTitle(e.target.value)}
+                    placeholder="Program title — e.g. Perimeter & classroom security"
+                    aria-label="Program title"
+                    className="min-h-[44px] w-72 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                  />
+                  <select
+                    value={progCampus || clientCampuses[0] || ""}
+                    onChange={(e) => setProgCampus(e.target.value)}
+                    aria-label="Program campus"
+                    className="min-h-[44px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                  >
+                    {clientCampuses.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="date"
+                    value={progTarget}
+                    onChange={(e) => setProgTarget(e.target.value)}
+                    aria-label="Program target date"
+                    className="min-h-[44px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                  />
+                  <button
+                    type="button"
+                    disabled={!progTitle.trim() || picked.length === 0}
+                    onClick={doCreateProgram}
+                    className="min-h-[44px] rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Create program ({picked.length})
+                  </button>
+                </div>
+              </div>
+            )}
+            {progMsg && (
+              <p className="mt-2 text-sm font-medium text-emerald-700" role="status">
+                {progMsg}
+              </p>
+            )}
+
+            {schoolPrograms.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">
+                No programs yet for this school.
+              </p>
+            ) : (
+              <div className="mt-3 space-y-3">
+                {schoolPrograms.map((p) => {
+                  const r = programRollup(p, allFindings, allAssessments);
+                  return (
+                    <div
+                      key={p.id}
+                      className="rounded-xl border border-slate-200 p-3"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {p.title}
+                        </p>
+                        <span className="text-xs text-slate-500">
+                          {p.campus} · created by {p.createdBy}
+                        </span>
+                        <select
+                          value={p.status}
+                          onChange={(e) => {
+                            const ok = setProgramStatus(
+                              p.id,
+                              e.target.value as ProgramStatus,
+                              getProfile()?.name ?? ""
+                            );
+                            setProgMsg(
+                              ok
+                                ? ""
+                                : "Completing a program needs your name — set it in My Profile."
+                            );
+                            setRows(loadRows());
+                          }}
+                          aria-label={`Program status for ${p.title}`}
+                          className="min-h-[38px] rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                        >
+                          <option value="planned">Planned</option>
+                          <option value="in_progress">In progress</option>
+                          <option value="completed">Completed</option>
+                        </select>
+                        <input
+                          type="date"
+                          value={p.targetDate ?? ""}
+                          onChange={(e) => {
+                            setProgramTargetDate(
+                              p.id,
+                              e.target.value || undefined
+                            );
+                            setRows(loadRows());
+                          }}
+                          aria-label={`Program target date for ${p.title}`}
+                          className="min-h-[38px] rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                        />
+                      </div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                        <div
+                          className="h-full rounded-full bg-emerald-500"
+                          style={{ width: `${r.pctVerified}%` }}
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {r.summary.verified} of {r.summary.total} member
+                        actions verified ({r.pctVerified}%) ·{" "}
+                        {r.summary.corrected} corrected ·{" "}
+                        {r.summary.actionable} open/in progress
+                        {r.summary.overdue > 0 && (
+                          <span className="font-semibold text-red-600">
+                            {" "}· {r.summary.overdue} overdue
+                          </span>
+                        )}
+                        {r.nextDue ? ` · next due ${r.nextDue}` : ""}
+                        {p.status === "completed" && p.completedBy
+                          ? ` · ✓ completed by ${p.completedBy}${p.completedAt ? ` on ${p.completedAt.slice(0, 10)}` : ""}`
+                          : ""}
+                      </p>
+                      <ul className="mt-2 space-y-1">
+                        {r.members.map((f) => (
+                          <li key={f.id} className="text-sm text-slate-700">
+                            <span className="font-medium">
+                              [{CA_LABELS[caStatusOf(f)]}]
+                            </span>{" "}
+                            <Link
+                              href={`/assessments/${f.assessmentId}`}
+                              className="hover:text-violet-700 hover:underline"
+                            >
+                              {f.gapText}
+                            </Link>
+                            {f.caOwner ? ` · ${f.caOwner}` : ""}
+                            {f.caDueDate ? ` · due ${f.caDueDate}` : ""}
+                          </li>
+                        ))}
+                        {r.members.length < p.checkpointKeys.length && (
+                          <li className="text-xs text-slate-400">
+                            {p.checkpointKeys.length - r.members.length}{" "}
+                            member checkpoint(s) have no finding in the
+                            school's current assessments.
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         rows.length === 0 ? (
           <EmptyState
@@ -543,6 +849,24 @@ function FindingsInner() {
                   {/* Corrective-action tracker (interactive — screen only;
                       print shows the caPrintLine summary instead) */}
                   <div className="flex flex-wrap items-center gap-2 px-2 pb-3 pt-1 md:px-3 print:hidden">
+                    {picking && clientFilter !== "all" && (
+                      <label className="flex min-h-[38px] items-center gap-1.5 rounded-lg border border-violet-300 bg-violet-50 px-2 text-xs font-semibold text-violet-800">
+                        <input
+                          type="checkbox"
+                          checked={picked.includes(f.checkpointKey)}
+                          onChange={(e) =>
+                            setPicked((prev) =>
+                              e.target.checked
+                                ? [...new Set([...prev, f.checkpointKey])]
+                                : prev.filter((k) => k !== f.checkpointKey)
+                            )
+                          }
+                          aria-label={`Pick for program: ${f.gapText}`}
+                          className="h-5 w-5 accent-violet-600"
+                        />
+                        Program
+                      </label>
+                    )}
                     <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
                       Action
                     </span>
@@ -581,6 +905,44 @@ function FindingsInner() {
                       aria-label="Corrective action due date"
                       className={ctl}
                     />
+                    {(status === "corrected" || status === "verified") && (
+                      <>
+                        <select
+                          value={f.caIssueCode ?? ""}
+                          onChange={(e) =>
+                            updateCa(f, {
+                              caIssueCode: e.target.value || undefined,
+                            })
+                          }
+                          aria-label={`What was wrong for: ${f.gapText}`}
+                          className={ctl}
+                        >
+                          <option value="">What was wrong…</option>
+                          {Object.entries(CA_ISSUE_CODES).map(([k, v]) => (
+                            <option key={k} value={k}>
+                              {v}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={f.caRemedyCode ?? ""}
+                          onChange={(e) =>
+                            updateCa(f, {
+                              caRemedyCode: e.target.value || undefined,
+                            })
+                          }
+                          aria-label={`What was done for: ${f.gapText}`}
+                          className={ctl}
+                        >
+                          <option value="">What was done…</option>
+                          {Object.entries(CA_REMEDY_CODES).map(([k, v]) => (
+                            <option key={k} value={k}>
+                              {v}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    )}
                     {overdue && <Badge tone="red">⚠ Overdue</Badge>}
                     {status === "verified" && f.caVerifiedAt && (
                       <span className="text-xs font-medium text-emerald-700">
