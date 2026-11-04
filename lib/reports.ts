@@ -30,6 +30,7 @@ import { fslLabel, populationPoints, sizePoints } from "@/lib/fsl";
 import { caStatusOf, isReverifyLapsed } from "./ca";
 import {
   buildAttackChain,
+  chainSignature,
   effectivePriority,
   isPresentUntested,
   testStateOf,
@@ -372,7 +373,7 @@ function findingExtraLines(
   const tl = testSummaryLine(r);
   if (tl) out.push(`- **${tl}**`);
   const cp = idx.get(f.checkpointKey);
-  const zone = zoneOf(cp?.domain, cp?.text ?? "");
+  const zone = zoneOf(cp?.domain, cp?.text ?? f.gapText);
   const pm = effectivePriority(f, r, zone);
   out.push(`- **Priority (reachability-weighted):** ${riskLabel(pm.priority)} — ${pm.line}`);
   if (f.caStatus === "verified" && f.caReverifyBy) {
@@ -391,6 +392,7 @@ function findingExtraLines(
 }
 
 function attackPathSection(
+  a: Assessment,
   findings: Finding[],
   rByKey: Map<string, ResponseRow>,
   idx: Map<string, CheckpointRef>
@@ -399,11 +401,20 @@ function attackPathSection(
     findings,
     (f) => {
       const cp = idx.get(f.checkpointKey);
-      return zoneOf(cp?.domain, cp?.text ?? "");
+      return zoneOf(cp?.domain, cp?.text ?? f.gapText);
     },
     (f) => rByKey.get(f.checkpointKey)
   );
   if (!chain) return [];
+  const dismissal = a.attackPathDismissal;
+  if (dismissal && dismissal.signature === chainSignature(chain)) {
+    return [
+      "## Attack Path Analysis",
+      "",
+      `A computed attack path through these findings (${chain.steps.map((s) => s.finding.gapText).join(" → ")}) was dismissed by ${dismissal.by || "the assessor"} on ${dismissal.at.slice(0, 10)}: ${dismissal.reason}`,
+      "",
+    ];
+  }
   const L: string[] = [];
   L.push("## Attack Path Analysis");
   L.push("");
@@ -591,7 +602,7 @@ export function buildAarMarkdown(
     });
   }
 
-  attackPathSection(sorted, rByKey, idx).forEach((x) => L.push(x));
+  attackPathSection(a, sorted, rByKey, idx).forEach((x) => L.push(x));
   controlTestsSection(a, responses, idx).forEach((x) => L.push(x));
 
   L.push("## Priority Recommendations");
@@ -741,7 +752,7 @@ export function buildFindingsMarkdown(
     return L.join("\n");
   }
 
-  attackPathSection(sorted, rByKey, idx).forEach((x) => L.push(x));
+  attackPathSection(a, sorted, rByKey, idx).forEach((x) => L.push(x));
   controlTestsSection(a, allResponses, idx).forEach((x) => L.push(x));
 
   sorted.forEach((f, i) => {
