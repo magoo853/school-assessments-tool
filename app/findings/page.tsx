@@ -15,6 +15,7 @@ import {
   type Finding,
   type Risk,
   type CaStatus,
+  type Exposure,
   type ProgramStatus,
 } from "@/lib/store";
 import {
@@ -22,7 +23,14 @@ import {
   CA_REMEDY_CODES,
   caStatusOf,
   isCaOverdue,
+  isReverifyLapsed,
+  reverifyByFor,
 } from "@/lib/ca";
+import {
+  EXPOSURE_LABEL,
+  effectivePriority,
+  zoneOf,
+} from "@/lib/security";
 import {
   createProgram,
   programRollup,
@@ -275,9 +283,13 @@ function FindingsInner() {
     if (patch.caStatus === "verified") {
       next.caVerifiedAt = new Date().toISOString();
       next.caVerifiedBy = getProfile()?.name ?? "";
+      // Verified closure carries a re-verify-by date scaled by
+      // severity (directed build #4).
+      next.caReverifyBy = reverifyByFor(f.risk, next.caVerifiedAt);
     } else if (patch.caStatus) {
       next.caVerifiedAt = undefined;
       next.caVerifiedBy = undefined;
+      next.caReverifyBy = undefined;
       // Reopening a CA retires its close-out codes — they described a
       // fix that is no longer claimed.
       if (patch.caStatus === "open" || patch.caStatus === "in_progress") {
@@ -832,6 +844,22 @@ function FindingsInner() {
                         {r.date ? ` · ${r.date}` : ""}
                         {` · ${r.domainName}`}
                       </p>
+                      {(f.caRegression || isReverifyLapsed(f)) && (
+                        <span className="mt-1 flex flex-wrap gap-1">
+                          {f.caRegression && (
+                            <Badge tone="red">
+                              ↩ Regressed — reopened{" "}
+                              {f.caRegression.reopenedAt.slice(0, 10)} (was
+                              verified {f.caRegression.priorVerifiedAt.slice(0, 10)})
+                            </Badge>
+                          )}
+                          {isReverifyLapsed(f) && (
+                            <Badge tone="yellow">
+                              Re-verification overdue (by {f.caReverifyBy})
+                            </Badge>
+                          )}
+                        </span>
+                      )}
                       <FindingThumbs photoIds={f.photoIds} completedAt={r.completedAt} />
                       <p className="mt-1 hidden text-xs text-slate-600 print:block">
                         {caPrintLine(f)}
@@ -944,6 +972,7 @@ function FindingsInner() {
                       <span className="text-xs font-medium text-emerald-700">
                         ✓ Verified {f.caVerifiedAt.slice(0, 10)}
                         {f.caVerifiedBy ? ` by ${f.caVerifiedBy}` : ""}
+                        {f.caReverifyBy ? ` · re-verify by ${f.caReverifyBy}` : ""}
                       </span>
                     )}
                     {status === "corrected" && (
@@ -956,6 +985,80 @@ function FindingsInner() {
                       </button>
                     )}
                   </div>
+
+                  {/* Reachability-weighted priority (directed build #3):
+                      the math shows, and the inputs are adjustable. */}
+                  {(() => {
+                    const resp = db.responses.filter(
+                      (x) =>
+                        x.assessmentId === f.assessmentId &&
+                        x.checkpointKey === f.checkpointKey
+                    )[0];
+                    const zone = zoneOf(r.domainKey.split(":")[1], "");
+                    const pm = effectivePriority(f, resp, zone);
+                    const reach = {
+                      exposure: pm.exposure,
+                      inSession: pm.inSession,
+                      compensating: f.reach?.compensating ?? "",
+                    };
+                    return (
+                      <div className="flex flex-wrap items-center gap-2 px-2 pb-3 md:px-3 print:hidden">
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                          Priority
+                        </span>
+                        <RiskBadge risk={pm.priority} />
+                        <span className="text-xs text-slate-500">{pm.line}</span>
+                        <select
+                          value={reach.exposure}
+                          onChange={(e) =>
+                            updateCa(f, {
+                              reach: {
+                                ...reach,
+                                exposure: e.target.value as Exposure,
+                              },
+                            })
+                          }
+                          aria-label={`Exposure for: ${f.gapText}`}
+                          className={ctl}
+                        >
+                          {(Object.keys(EXPOSURE_LABEL) as Exposure[]).map(
+                            (x) => (
+                              <option key={x} value={x}>
+                                {EXPOSURE_LABEL[x]}
+                              </option>
+                            )
+                          )}
+                        </select>
+                        <label className="flex min-h-[38px] items-center gap-1.5 text-sm text-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={reach.inSession}
+                            onChange={(e) =>
+                              updateCa(f, {
+                                reach: { ...reach, inSession: e.target.checked },
+                              })
+                            }
+                            className="h-4 w-4"
+                          />
+                          In session
+                        </label>
+                        <input
+                          key={`${f.id}:cc:${reach.compensating}`}
+                          defaultValue={reach.compensating}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v !== reach.compensating)
+                              updateCa(f, {
+                                reach: { ...reach, compensating: v },
+                              });
+                          }}
+                          placeholder="Compensating control"
+                          aria-label={`Compensating control for: ${f.gapText}`}
+                          className={`${ctl} w-44`}
+                        />
+                      </div>
+                    );
+                  })()}
                 </li>
               );
             })}
