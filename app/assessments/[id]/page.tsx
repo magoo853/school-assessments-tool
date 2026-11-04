@@ -1206,6 +1206,12 @@ function AttackPathCard({
 }) {
   const [dismissing, setDismissing] = useState(false);
   const [reason, setReason] = useState("");
+  // The dismissal lives on the assessment record; the prop can be a
+  // stale snapshot after this card writes it, so read the live record
+  // (local tick forces the re-read after dismiss/restore).
+  const [localTick, setLocalTick] = useState(0);
+  void localTick;
+  const liveAssessment = db.assessments.get(assessment.id) ?? assessment;
   const chain = useMemo(() => {
     const rByKey = new Map(
       db.responses
@@ -1227,7 +1233,7 @@ function AttackPathCard({
   }, [assessment.id, template, findings]);
   if (!chain) return null;
   const signature = chainSignature(chain);
-  const dismissal = assessment.attackPathDismissal;
+  const dismissal = liveAssessment.attackPathDismissal;
   const dismissed = dismissal?.signature === signature;
 
   if (dismissed) {
@@ -1239,9 +1245,10 @@ function AttackPathCard({
             variant="ghost"
             onClick={() => {
               db.assessments.upsert({
-                ...assessment,
+                ...liveAssessment,
                 attackPathDismissal: undefined,
               });
+              setLocalTick((t) => t + 1);
               onChanged?.();
             }}
           >
@@ -1294,7 +1301,7 @@ function AttackPathCard({
             disabled={!reason.trim()}
             onClick={() => {
               db.assessments.upsert({
-                ...assessment,
+                ...liveAssessment,
                 attackPathDismissal: {
                   signature,
                   reason: reason.trim(),
@@ -1304,6 +1311,7 @@ function AttackPathCard({
               });
               setDismissing(false);
               setReason("");
+              setLocalTick((t) => t + 1);
               onChanged?.();
             }}
           >
