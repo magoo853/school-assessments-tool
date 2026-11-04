@@ -9,6 +9,7 @@ import {
   type Answer,
   type Assessment,
   type Assessor,
+  type ControlTest,
   type EquipmentItem,
   type Finding,
   type ResponseRow,
@@ -21,7 +22,16 @@ import {
   type Checkpoint,
 } from "@/lib/templates";
 import { resolveTemplate, isTemplateMissing } from "@/lib/customTemplates";
-import { deriveFindings } from "@/lib/findings";
+import { applyRegressions, deriveFindings } from "@/lib/findings";
+import {
+  buildAttackChain,
+  effectivePriority,
+  isPresentUntested,
+  testStateOf,
+  testSummaryLine,
+  zoneOf,
+} from "@/lib/security";
+import { todayStr } from "@/lib/ca";
 import AiDraftButton, { AiDraftBadge } from "@/components/AiDraftButton";
 import { AssessorCard } from "@/components/AssessorCard";
 import { PhotoPicker } from "@/components/PhotoPicker";
@@ -307,6 +317,15 @@ function CheckpointCard({
           {checkpoint.text}
         </p>
         {answer === "no" && <RiskBadge risk={response?.risk ?? null} />}
+        {answer === "yes" && isPresentUntested(response) && (
+          <Badge tone="yellow">Present — untested</Badge>
+        )}
+        {response?.test && testStateOf(response) === "pass" && (
+          <Badge tone="green">✓ Tested — pass</Badge>
+        )}
+        {response?.test && testStateOf(response) === "fail" && (
+          <Badge tone="red">✗ Tested — fail</Badge>
+        )}
       </div>
 
       <div className="mt-3">
@@ -367,6 +386,95 @@ function CheckpointCard({
             photoIds={response?.photoIds}
             onChange={(photoIds) => onSave({ photoIds })}
           />
+        </Field>
+        <Field
+          label="Control test"
+          info="Presence is not function — record how this control was actually tested."
+        >
+          <div className="space-y-3 rounded-lg border border-gray-200 p-3">
+            <div
+              className="grid grid-cols-3 gap-2"
+              role="radiogroup"
+              aria-label="Control test result"
+            >
+              {(
+                [
+                  { v: "pass", label: "✓ Pass", active: "border-green-600 bg-green-600 text-white" },
+                  { v: "fail", label: "✗ Fail", active: "border-red-600 bg-red-600 text-white" },
+                  { v: "not_tested", label: "Not tested", active: "border-gray-500 bg-gray-500 text-white" },
+                ] as const
+              ).map((o) => {
+                const cur = response?.test?.result ?? null;
+                return (
+                  <button
+                    key={o.v}
+                    type="button"
+                    role="radio"
+                    aria-checked={cur === o.v}
+                    onClick={() => {
+                      const base: ControlTest = response?.test ?? {
+                        method: "",
+                        result: o.v,
+                        note: "",
+                        by: getProfile()?.name ?? "",
+                        at: todayStr(),
+                      };
+                      onSave({ test: { ...base, result: o.v } });
+                    }}
+                    className={`min-h-[44px] rounded-lg border px-2 py-2.5 text-sm font-semibold transition active:scale-[0.98] ${
+                      cur === o.v
+                        ? o.active
+                        : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+            {response?.test && (
+              <>
+                <input
+                  className={inputCls}
+                  value={response.test.method}
+                  onChange={(e) =>
+                    onSave({ test: { ...response.test!, method: e.target.value } })
+                  }
+                  placeholder="Method — e.g. door alarm annunciated; live view + playback retrieved; radio check reached the office"
+                  aria-label="Control test method"
+                />
+                <input
+                  className={inputCls}
+                  value={response.test.note}
+                  onChange={(e) =>
+                    onSave({ test: { ...response.test!, note: e.target.value } })
+                  }
+                  placeholder="Test note (optional)"
+                  aria-label="Control test note"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    className={inputCls}
+                    value={response.test.by}
+                    onChange={(e) =>
+                      onSave({ test: { ...response.test!, by: e.target.value } })
+                    }
+                    placeholder="Tested by"
+                    aria-label="Tested by"
+                  />
+                  <input
+                    type="date"
+                    className={inputCls}
+                    value={response.test.at}
+                    onChange={(e) =>
+                      onSave({ test: { ...response.test!, at: e.target.value } })
+                    }
+                    aria-label="Test date"
+                  />
+                </div>
+              </>
+            )}
+          </div>
         </Field>
         {assetTouch && onCondition && (
           <Field
@@ -1075,6 +1183,63 @@ function ReadOnlyAnswers({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Attack path — the findings chained along the intruder's route       */
+/* ------------------------------------------------------------------ */
+
+function AttackPathCard({
+  assessment,
+  template,
+  findings,
+}: {
+  assessment: Assessment;
+  template: AssessmentTemplate;
+  findings: Finding[];
+}) {
+  const chain = useMemo(() => {
+    const rByKey = new Map(
+      db.responses
+        .filter((r) => r.assessmentId === assessment.id)
+        .map((r) => [r.checkpointKey, r])
+    );
+    return buildAttackChain(
+      findings,
+      (f) => {
+        const hit = getCheckpoint(template, f.checkpointKey);
+        return hit ? zoneOf(hit.domain.id, hit.checkpoint.text) : null;
+      },
+      (f) => rByKey.get(f.checkpointKey)
+    );
+  }, [assessment.id, template, findings]);
+  if (!chain) return null;
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-semibold text-gray-900">Attack path</p>
+        <span className="flex items-center gap-2">
+          <span className="text-xs font-medium text-gray-500">Chain rating</span>
+          <RiskBadge risk={chain.rating} />
+        </span>
+      </div>
+      <ol className="mt-3 space-y-2">
+        {chain.steps.map((s, i) => (
+          <li key={s.finding.id} className="flex items-start gap-2 text-sm">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">
+              {i + 1}
+            </span>
+            <span className="min-w-0">
+              <span className="font-medium text-gray-700">{s.zoneLabel}:</span>{" "}
+              <span className="text-gray-900">{s.finding.gapText}</span>{" "}
+              <RiskBadge risk={s.finding.risk} />
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-xs text-gray-500">{chain.ratingRule}</p>
+    </Card>
+  );
+}
+
 function ReviewStep({
   assessment,
   template,
@@ -1121,6 +1286,12 @@ function ReviewStep({
         </div>
       </Card>
 
+      <AttackPathCard
+        assessment={assessment}
+        template={template}
+        findings={findings}
+      />
+
       {findings.length === 0 ? (
         <EmptyState
           title="No findings"
@@ -1150,6 +1321,30 @@ function ReviewStep({
                   {f.note}
                 </p>
               )}
+              {(() => {
+                const resp = db.responses.filter(
+                  (r) =>
+                    r.assessmentId === assessment.id &&
+                    r.checkpointKey === f.checkpointKey
+                )[0];
+                const zone = hit
+                  ? zoneOf(hit.domain.id, hit.checkpoint.text)
+                  : null;
+                const pm = effectivePriority(f, resp, zone);
+                const tl = testSummaryLine(resp);
+                return (
+                  <div className="mt-2 space-y-0.5 text-xs text-gray-500">
+                    {tl && <p>{tl}</p>}
+                    <p>
+                      Priority (reachability-weighted):{" "}
+                      <span className="font-medium text-gray-700">
+                        {pm.priority}
+                      </span>{" "}
+                      — {pm.line}
+                    </p>
+                  </div>
+                );
+              })()}
               <p className="mt-2 text-sm text-gray-600">
                 <span className="font-medium text-gray-700">
                   Draft recommendation:{" "}
@@ -1299,6 +1494,9 @@ export default function TakerPage() {
     for (const s of db.schedules.filter((x) => x.assessmentId === id)) {
       db.schedules.upsert({ ...s, status: "completed" });
     }
+    // A checkpoint failed again on this visit reopens any verified
+    // closure for it at this school (regression, directed build #4).
+    applyRegressions(id);
     setConfirming(false);
     setTick((t) => t + 1);
   };
