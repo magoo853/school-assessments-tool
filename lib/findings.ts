@@ -204,38 +204,30 @@ function deriveEquipmentMentions(
 }
 
 /**
- * Regression pass (2026-11-04, directed build #4): when a COMPLETED
- * assessment records a checkpoint failed again, any verified-closed
- * corrective action for the same checkpoint at the same school (on an
- * earlier assessment) reopens — its prior verification is preserved
- * in the regression record, never silently left standing. Called by
- * the completion flow after the assessment is marked completed;
- * derivation at reassessment START deliberately does not regress
- * anything (carried-forward answers are not a new observation).
- * Returns the number of actions reopened.
+ * Reopen every verified-closed corrective action for one checkpoint
+ * at one school because `fromAssessmentId` recorded that checkpoint
+ * failed again. The prior verification is preserved in the
+ * regression record — never silently left standing and never erased.
+ * Returns the number reopened.
  */
-export function applyRegressions(assessmentId: string): number {
-  const assessment = db.assessments.get(assessmentId);
-  if (!assessment || assessment.status !== "completed") return 0;
-  const failedKeys = new Set(
-    db.findings
-      .filter((f) => f.assessmentId === assessmentId)
-      .map((f) => f.checkpointKey)
-  );
-  if (!failedKeys.size) return 0;
+function reopenVerifiedClosures(
+  clientName: string,
+  checkpointKey: string,
+  fromAssessmentId: string
+): number {
   let reopened = 0;
   for (const other of db.assessments.filter(
-    (a) => a.clientName === assessment.clientName && a.id !== assessmentId
+    (a) => a.clientName === clientName && a.id !== fromAssessmentId
   )) {
     for (const f of db.findings.filter((x) => x.assessmentId === other.id)) {
-      if (f.caStatus !== "verified" || !failedKeys.has(f.checkpointKey))
+      if (f.caStatus !== "verified" || f.checkpointKey !== checkpointKey)
         continue;
       db.findings.upsert({
         ...f,
         caStatus: "open",
         caRegression: {
           reopenedAt: new Date().toISOString(),
-          fromAssessmentId: assessmentId,
+          fromAssessmentId,
           priorVerifiedAt: f.caVerifiedAt ?? "",
           ...(f.caVerifiedBy ? { priorVerifiedBy: f.caVerifiedBy } : {}),
         },
@@ -247,4 +239,46 @@ export function applyRegressions(assessmentId: string): number {
     }
   }
   return reopened;
+}
+
+/**
+ * Regression pass (2026-11-04, directed build #4): when a COMPLETED
+ * assessment records a checkpoint failed again, any verified-closed
+ * corrective action for the same checkpoint at the same school (on an
+ * earlier assessment) reopens. Called by the completion flow after
+ * the assessment is marked completed. Returns the number reopened.
+ */
+export function applyRegressions(assessmentId: string): number {
+  const assessment = db.assessments.get(assessmentId);
+  if (!assessment || assessment.status !== "completed") return 0;
+  const failedKeys = new Set(
+    db.findings
+      .filter((f) => f.assessmentId === assessmentId)
+      .map((f) => f.checkpointKey)
+  );
+  let reopened = 0;
+  for (const key of failedKeys)
+    reopened += reopenVerifiedClosures(assessment.clientName, key, assessmentId);
+  return reopened;
+}
+
+/**
+ * Save-time regression (2026-11-04 addendum — "the app does as much
+ * of it as possible"): the moment an assessor SAVES a "no" answer on
+ * a follow-up visit, a verified closure for that checkpoint at that
+ * school reopens — no completion step, no human hand-off. Carried-
+ * forward answers at reassessment creation do not pass through here;
+ * they were not saved as a new observation.
+ */
+export function regressCheckpointNow(
+  assessmentId: string,
+  checkpointKey: string
+): number {
+  const assessment = db.assessments.get(assessmentId);
+  if (!assessment) return 0;
+  return reopenVerifiedClosures(
+    assessment.clientName,
+    checkpointKey,
+    assessmentId
+  );
 }

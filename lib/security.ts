@@ -85,12 +85,18 @@ export function zoneOf(
     else if (/interior|classroom/.test(n)) z = 4;
   }
   if (z === undefined) {
+    // Unknown domain: zone from the checkpoint's own words. A
+    // checkpoint whose words carry no spatial meaning is OFF the
+    // physical path (null) — never defaulted into the classroom
+    // zone, which would put non-spatial items (plans, staffing)
+    // on the intruder's route.
     const t = checkpointText.toLowerCase();
     if (/fence|gate|perimeter|boundary/.test(t)) z = 1;
     else if (/parking|playground|street|grounds|traffic/.test(t)) z = 0;
-    else if (/visitor|vestibule|entry|entrance|exterior door/.test(t)) z = 2;
     else if (COMMON_AREA.test(t)) z = 3;
-    else z = 4;
+    else if (/visitor|vestibule|entry|entrance|exterior door/.test(t)) z = 2;
+    else if (/classroom|office|interior/.test(t)) z = 4;
+    else z = null;
   }
   if (z === 4 && COMMON_AREA.test(checkpointText)) return 3;
   return z;
@@ -265,6 +271,21 @@ export interface AttackChain {
  * rates HIGH outright — several moderates forming one open path to
  * students are a high-risk path.
  */
+/**
+ * Stable identity of a computed chain (directed-build addendum,
+ * 2026-11-04): the step checkpoints in order + the rating. A
+ * dismissal is recorded against this signature — when the findings
+ * change, the computed path is a different path and any dismissal of
+ * the old one no longer applies.
+ */
+export function chainSignature(chain: AttackChain): string {
+  return (
+    chain.steps.map((s) => s.finding.checkpointKey).join(">") +
+    "@" +
+    chain.rating
+  );
+}
+
 export function buildAttackChain(
   findings: Finding[],
   zoneFor: (f: Finding) => number | null,

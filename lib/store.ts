@@ -72,6 +72,16 @@ export interface Assessment {
   completedAt?: string;
   cover: { date: string; assessors: string; escort: string; weather: string };
   review?: ReviewRecord;
+  /** Dismissal of the COMPUTED attack path for this assessment
+   *  (2026-11-04 addendum): paths are always computed by the app,
+   *  never hand-authored; an assessor may dismiss one with a reason,
+   *  recorded against the chain's signature (lib/security.ts). */
+  attackPathDismissal?: {
+    signature: string;
+    reason: string;
+    by: string;
+    at: string;
+  };
 }
 
 /** A control test recorded at the checkpoint during the walkthrough
