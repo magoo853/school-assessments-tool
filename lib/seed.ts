@@ -258,6 +258,43 @@ export function installSeed(): void {
     "Keep all non-main entries secured during school hours; add a self-closing check or door-prop alarm on the cafeteria side door.",
   );
 
+  /* ------------- directed build "add 1-4" demo records (2026-11-04) ------------- */
+
+  // Control tests (#2): the cafeteria-door control was tested and
+  // failed; the camera control was tested and passed. Everything else
+  // answered YES at Riverside is present-but-untested by design.
+  const withTest = (key: string, test: ResponseRow["test"]) => {
+    const row = db.responses.filter(
+      (r) => r.assessmentId === riverside.id && r.checkpointKey === key
+    )[0];
+    if (row) db.responses.upsert({ ...row, test });
+  };
+  withTest("4.7", {
+    method: "Latch test — door released from the propped position did not latch; no door-prop alarm sounded",
+    result: "fail",
+    note: "",
+    by: "Marlena Voss",
+    at: "2025-09-10",
+  });
+  withTest("7.1", {
+    method: "Live view checked at the office monitor; playback retrieved from the previous school day",
+    result: "pass",
+    note: "",
+    by: "Darius Cole",
+    at: "2025-09-10",
+  });
+
+  // Verified closure with a lapsed re-verify-by date (#4): the EOP
+  // action was verified closed in Sep 2025; its 12-month
+  // re-verification (low severity → 365 days) is now overdue.
+  db.findings.upsert({
+    ...f4,
+    caStatus: "verified",
+    caVerifiedAt: "2025-09-12T15:00:00.000Z",
+    caVerifiedBy: "Marlena Voss",
+    caReverifyBy: "2026-09-12",
+  });
+
   /* ---------------------------------- equipment ---------------------------------- */
 
   const mkEquipment = (
