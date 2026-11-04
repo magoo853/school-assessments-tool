@@ -8,6 +8,11 @@
  */
 import { db, uid, nowIso } from "./store";
 import { getTemplate } from "./templates";
+import {
+  buildAarMarkdown,
+  buildFindingsMarkdown,
+  buildRecommendationsMarkdown,
+} from "./reports";
 import { schoolKeyOf } from "./assets";
 import { DISCLOSURES } from "./clery";
 import type {
@@ -429,72 +434,56 @@ export function installSeed(): void {
       updatedAt: now,
     });
 
+  // Seeded reports are GENERATED from the seeded records with the
+  // same builders the Reports page uses — never hand-written. The
+  // hand-written bodies drifted from the records (the AAR said "Four
+  // findings" and the Findings report omitted the cafeteria-door
+  // finding, checkpoint 4.7, while five findings exist and 4.7 is in
+  // the remediation program). Generating from the records keeps the
+  // counts, the findings, the attack path, and the control tests in
+  // agreement by construction. James approved the regeneration
+  // 2026-11-04.
+  const riversideResponses = db.responses.filter(
+    (r) => r.assessmentId === riverside.id,
+  );
+  const riversideFindings = db.findings.filter(
+    (f) => f.assessmentId === riverside.id,
+  );
+  const riversideEquipment = db.equipment.filter(
+    (e) => e.assessmentId === riverside.id,
+  );
+  const riversideTemplate = getTemplate(riverside.templateId);
+
   mkReport(
     riverside.id,
     "aar",
     "After-Action Report — Riverside Elementary",
-    [
-      "# After-Action Report — Riverside Elementary",
-      "",
-      "## Visit summary",
-      "",
-      "On-site walkthrough conducted on 2025-09-10 by Marlena Voss and Darius Cole, escorted by the principal's office. Weather was clear. The walkthrough covered the main building, Building C, the playground fence line, and the front office.",
-      "",
-      "## Key observations",
-      "",
-      "- Perimeter control is the weakest area: a propped cafeteria side door and two propped playground gates were found during school hours.",
-      "- Classroom door hardware in Building C does not allow interior locking.",
-      "- Visitor management is inconsistent during afternoon dismissal.",
-      "",
-      "## Follow-up",
-      "",
-      "Four findings were documented. A reassessment visit is recommended within 12 months to verify corrective actions.",
-    ].join("\n"),
+    buildAarMarkdown(
+      riverside,
+      riversideResponses,
+      riversideFindings,
+      riversideEquipment,
+      riversideTemplate,
+    ),
   );
 
   mkReport(
     riverside.id,
     "findings",
     "Findings Report — Riverside Elementary",
-    [
-      "# Findings Report — Riverside Elementary",
-      "",
-      "## High risk",
-      "",
-      "- **Several classroom doors cannot be locked from the inside** — Building C classrooms lock only with a key from the hallway side.",
-      "- **Two exterior gates along the playground fence remain propped open during school hours** — both pedestrian gates were propped with rocks.",
-      "",
-      "## Moderate risk",
-      "",
-      "- **Visitor check-in desk is unstaffed during afternoon dismissal** — desk empty 2:45–3:15 PM.",
-      "",
-      "## Low risk",
-      "",
-      "- **Emergency operations plan has not been updated since 2023** — no annual review on record.",
-    ].join("\n"),
+    buildFindingsMarkdown(riverside, riversideFindings, riversideTemplate),
   );
 
   mkReport(
     riverside.id,
     "recommendations",
     "Recommendations Report — Riverside Elementary",
-    [
-      "# Recommendations Report — Riverside Elementary",
-      "",
-      "## Priority 1 — perimeter control",
-      "",
-      "- Retrofit Building C classroom doors with interior-locking hardware.",
-      "- Install self-closing gate hardware with panic egress on both playground gates.",
-      "- Adopt a written policy that gates remain closed during the school day.",
-      "",
-      "## Priority 2 — visitor management",
-      "",
-      "- Staff the visitor desk through the end of dismissal, or deploy a visitor kiosk with office intercom.",
-      "",
-      "## Priority 3 — plans and procedures",
-      "",
-      "- Readopt the emergency operations plan on an annual review cycle.",
-    ].join("\n"),
+    buildRecommendationsMarkdown(
+      riverside,
+      riversideFindings,
+      riversideEquipment,
+      riversideTemplate,
+    ),
   );
 
   /* ---------------------------------- schedules ---------------------------------- */
