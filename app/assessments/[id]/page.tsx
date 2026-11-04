@@ -22,9 +22,14 @@ import {
   type Checkpoint,
 } from "@/lib/templates";
 import { resolveTemplate, isTemplateMissing } from "@/lib/customTemplates";
-import { applyRegressions, deriveFindings } from "@/lib/findings";
+import {
+  applyRegressions,
+  deriveFindings,
+  regressCheckpointNow,
+} from "@/lib/findings";
 import {
   buildAttackChain,
+  chainSignature,
   effectivePriority,
   isPresentUntested,
   testStateOf,
@@ -1184,18 +1189,23 @@ function ReadOnlyAnswers({
 }
 
 /* ------------------------------------------------------------------ */
-/* Attack path — the findings chained along the intruder's route       */
+/* Attack path — computed from the findings, never hand-authored. An   */
+/* assessor may dismiss a computed path with a recorded reason.        */
 /* ------------------------------------------------------------------ */
 
 function AttackPathCard({
   assessment,
   template,
   findings,
+  onChanged,
 }: {
   assessment: Assessment;
   template: AssessmentTemplate;
   findings: Finding[];
+  onChanged?: () => void;
 }) {
+  const [dismissing, setDismissing] = useState(false);
+  const [reason, setReason] = useState("");
   const chain = useMemo(() => {
     const rByKey = new Map(
       db.responses
@@ -1206,12 +1216,46 @@ function AttackPathCard({
       findings,
       (f) => {
         const hit = getCheckpoint(template, f.checkpointKey);
-        return hit ? zoneOf(hit.domain.id, hit.checkpoint.text) : null;
+        // Unresolvable (legacy) checkpoint key: zone from the
+        // finding's own gap text rather than dropping it silently.
+        return hit
+          ? zoneOf(hit.domain.id, hit.checkpoint.text)
+          : zoneOf(undefined, f.gapText);
       },
       (f) => rByKey.get(f.checkpointKey)
     );
   }, [assessment.id, template, findings]);
   if (!chain) return null;
+  const signature = chainSignature(chain);
+  const dismissal = assessment.attackPathDismissal;
+  const dismissed = dismissal?.signature === signature;
+
+  if (dismissed) {
+    return (
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="font-semibold text-gray-900">Attack path</p>
+          <Btn
+            variant="ghost"
+            onClick={() => {
+              db.assessments.upsert({
+                ...assessment,
+                attackPathDismissal: undefined,
+              });
+              onChanged?.();
+            }}
+          >
+            Restore
+          </Btn>
+        </div>
+        <p className="mt-2 text-sm text-gray-600">
+          This computed path was dismissed by {dismissal.by || "the assessor"}{" "}
+          on {dismissal.at.slice(0, 10)} — {dismissal.reason}
+        </p>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1236,6 +1280,46 @@ function AttackPathCard({
         ))}
       </ol>
       <p className="mt-3 text-xs text-gray-500">{chain.ratingRule}</p>
+      {dismissing ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            className={inputCls}
+            style={{ flex: "1 1 220px" }}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason for dismissing this path"
+            aria-label="Dismissal reason"
+          />
+          <Btn
+            disabled={!reason.trim()}
+            onClick={() => {
+              db.assessments.upsert({
+                ...assessment,
+                attackPathDismissal: {
+                  signature,
+                  reason: reason.trim(),
+                  by: getProfile()?.name ?? "",
+                  at: new Date().toISOString(),
+                },
+              });
+              setDismissing(false);
+              setReason("");
+              onChanged?.();
+            }}
+          >
+            Record dismissal
+          </Btn>
+          <Btn variant="ghost" onClick={() => setDismissing(false)}>
+            Cancel
+          </Btn>
+        </div>
+      ) : (
+        <div className="mt-3">
+          <Btn variant="ghost" onClick={() => setDismissing(true)}>
+            Dismiss path
+          </Btn>
+        </div>
+      )}
     </Card>
   );
 }
@@ -1290,6 +1374,7 @@ function ReviewStep({
         assessment={assessment}
         template={template}
         findings={findings}
+        onChanged={() => setTick((t) => t + 1)}
       />
 
       {findings.length === 0 ? (
@@ -1329,7 +1414,7 @@ function ReviewStep({
                 )[0];
                 const zone = hit
                   ? zoneOf(hit.domain.id, hit.checkpoint.text)
-                  : null;
+                  : zoneOf(undefined, f.gapText);
                 const pm = effectivePriority(f, resp, zone);
                 const tl = testSummaryLine(resp);
                 return (
@@ -1480,6 +1565,10 @@ export default function TakerPage() {
     if (assessment.status === "draft") {
       db.assessments.upsert({ ...assessment, status: "in_progress" });
     }
+    // Save-time regression (addendum): a "no" saved on a follow-up
+    // visit reopens a verified closure for this checkpoint at this
+    // school immediately — automatically, no completion step needed.
+    if (patch.answer === "no") regressCheckpointNow(id, key);
     setTick((t) => t + 1);
   };
 

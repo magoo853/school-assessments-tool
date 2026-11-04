@@ -994,7 +994,7 @@ function FindingsInner() {
                         x.assessmentId === f.assessmentId &&
                         x.checkpointKey === f.checkpointKey
                     )[0];
-                    const zone = zoneOf(r.domainKey.split(":")[1], "");
+                    const zone = zoneOf(r.domainKey.split(":")[1], f.gapText);
                     const pm = effectivePriority(f, resp, zone);
                     const reach = {
                       exposure: pm.exposure,
