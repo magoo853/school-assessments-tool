@@ -27,6 +27,7 @@ import {
   caStatusOf,
   isCaOverdue,
   todayStr,
+  isReverifyLapsed,
 } from "./ca";
 
 /** A register row: a finding plus the fields /findings resolves for it. */
@@ -162,7 +163,17 @@ export function caPrintLine(f: Finding, today: string = todayStr()): string {
     parts.push(
       `Verified ${f.caVerifiedAt.slice(0, 10)}${f.caVerifiedBy ? ` by ${f.caVerifiedBy}` : ""}`
     );
+    if (f.caReverifyBy)
+      parts.push(
+        isReverifyLapsed(f, today)
+          ? `⚠ Re-verification overdue (by ${f.caReverifyBy})`
+          : `Re-verify by ${f.caReverifyBy}`
+      );
   }
+  if (f.caRegression)
+    parts.push(
+      `↩ Regressed — reopened ${f.caRegression.reopenedAt.slice(0, 10)} (was verified ${f.caRegression.priorVerifiedAt.slice(0, 10)})`
+    );
   if (f.caIssueCode) parts.push(`Wrong: ${caIssueLabel(f.caIssueCode)}`);
   if (f.caRemedyCode) parts.push(`Done: ${caRemedyLabel(f.caRemedyCode)}`);
   return parts.join(" · ");

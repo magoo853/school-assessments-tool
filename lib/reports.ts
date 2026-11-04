@@ -27,7 +27,15 @@ import {
   type ResponseRow,
 } from "@/lib/store";
 import { fslLabel, populationPoints, sizePoints } from "@/lib/fsl";
-import { caStatusOf } from "./ca";
+import { caStatusOf, isReverifyLapsed } from "./ca";
+import {
+  buildAttackChain,
+  effectivePriority,
+  isPresentUntested,
+  testStateOf,
+  testSummaryLine,
+  zoneOf,
+} from "./security";
 import {
   assetLife,
   assetsForSchool,
@@ -339,6 +347,111 @@ export function assetConditionMd(a: Assessment, heading: string): string {
  * Report markdown builders
  * ────────────────────────────── */
 
+/* ── Directed build "add 1-4" (2026-11-04): control tests,
+ * reachability-weighted priority, attack-path chaining, and
+ * verified-closure regression — report additions. ── */
+
+function responsesByKey(
+  a: Assessment,
+  provided?: ResponseRow[]
+): Map<string, ResponseRow> {
+  const rows =
+    provided ?? db.responses.filter((r) => r.assessmentId === a.id);
+  return new Map(rows.map((r) => [r.checkpointKey, r]));
+}
+
+/** Per-finding addition lines: control test, weighted priority math,
+ *  re-verification state, regression linkage. */
+function findingExtraLines(
+  f: Finding,
+  rByKey: Map<string, ResponseRow>,
+  idx: Map<string, CheckpointRef>
+): string[] {
+  const out: string[] = [];
+  const r = rByKey.get(f.checkpointKey);
+  const tl = testSummaryLine(r);
+  if (tl) out.push(`- **${tl}**`);
+  const cp = idx.get(f.checkpointKey);
+  const zone = zoneOf(cp?.domain, cp?.text ?? "");
+  const pm = effectivePriority(f, r, zone);
+  out.push(`- **Priority (reachability-weighted):** ${riskLabel(pm.priority)} — ${pm.line}`);
+  if (f.caStatus === "verified" && f.caReverifyBy) {
+    out.push(
+      isReverifyLapsed(f)
+        ? `- **Re-verification OVERDUE:** verified closure was due for re-verification by ${f.caReverifyBy}.`
+        : `- **Re-verify by:** ${f.caReverifyBy} (verified closure).`
+    );
+  }
+  if (f.caRegression) {
+    out.push(
+      `- **REGRESSED — reopened ${f.caRegression.reopenedAt.slice(0, 10)}:** this corrective action was verified closed (${f.caRegression.priorVerifiedAt.slice(0, 10)}${f.caRegression.priorVerifiedBy ? ` by ${f.caRegression.priorVerifiedBy}` : ""}) and the same checkpoint was recorded failed again on a later assessment.`
+    );
+  }
+  return out;
+}
+
+function attackPathSection(
+  findings: Finding[],
+  rByKey: Map<string, ResponseRow>,
+  idx: Map<string, CheckpointRef>
+): string[] {
+  const chain = buildAttackChain(
+    findings,
+    (f) => {
+      const cp = idx.get(f.checkpointKey);
+      return zoneOf(cp?.domain, cp?.text ?? "");
+    },
+    (f) => rByKey.get(f.checkpointKey)
+  );
+  if (!chain) return [];
+  const L: string[] = [];
+  L.push("## Attack Path Analysis");
+  L.push("");
+  L.push(
+    "The findings below chain into the path an intruder would walk, from the street to student-occupied space. Each step is a failed checkpoint on that path."
+  );
+  L.push("");
+  chain.steps.forEach((s, i) => {
+    L.push(
+      `${i + 1}. **${s.zoneLabel}** — ${s.finding.gapText} (${riskLabel(s.finding.risk)})`
+    );
+  });
+  L.push("");
+  L.push(`**${chain.ratingRule}**`);
+  L.push("");
+  return L;
+}
+
+function controlTestsSection(
+  a: Assessment,
+  responses: ResponseRow[],
+  idx: Map<string, CheckpointRef>
+): string[] {
+  const answered = responses.filter((r) => r.answer);
+  if (!answered.length) return [];
+  const pass = answered.filter((r) => testStateOf(r) === "pass").length;
+  const fail = answered.filter((r) => testStateOf(r) === "fail").length;
+  const untestedPresent = answered.filter((r) => isPresentUntested(r));
+  const L: string[] = [];
+  L.push("## Control Tests");
+  L.push("");
+  L.push(
+    `Presence is not function: of ${answered.length} answered checkpoints, ${pass} control${pass === 1 ? "" : "s"} tested PASS, ${fail} tested FAIL, and ${untestedPresent.length} control${untestedPresent.length === 1 ? " is" : "s are"} present but untested.`
+  );
+  if (untestedPresent.length) {
+    L.push("");
+    L.push("Present but untested:");
+    L.push("");
+    untestedPresent.slice(0, 12).forEach((r) => {
+      L.push(`- ${checkpointLabel(r.checkpointKey, idx)}`);
+    });
+    if (untestedPresent.length > 12)
+      L.push(`- …and ${untestedPresent.length - 12} more`);
+  }
+  L.push("");
+  return L;
+}
+
 export function buildAarMarkdown(
   a: Assessment,
   responses: ResponseRow[],
@@ -355,6 +468,7 @@ export function buildAarMarkdown(
   const c = countReportData(responses, findings);
   const yesAnswers = responses.filter((r) => r.answer === "yes");
   const strengthsTop = yesAnswers.slice(0, 8);
+  const rByKey = responsesByKey(a, responses);
   const linkedEquipment = (f: Finding) =>
     equipment.filter((e) => e.findingId === f.id);
   const unlinkedEquipment = equipment.filter(
@@ -472,9 +586,13 @@ export function buildAarMarkdown(
       if (cp?.text) L.push(`- **Criterion:** "${cp.text}"`);
       if (f.note.trim()) L.push(`- **Assessor note:** ${f.note.trim()}`);
       if (f.recommendation.trim()) L.push(`- **Recommendation:** ${f.recommendation.trim()}`);
+      findingExtraLines(f, rByKey, idx).forEach((x) => L.push(x));
       L.push("");
     });
   }
+
+  attackPathSection(sorted, rByKey, idx).forEach((x) => L.push(x));
+  controlTestsSection(a, responses, idx).forEach((x) => L.push(x));
 
   L.push("## Priority Recommendations");
   L.push("");
@@ -507,6 +625,7 @@ export function buildAarMarkdown(
       L.push(`- **Checkpoint:** ${checkpointLabel(f.checkpointKey, idx)}`);
       if (f.note.trim()) L.push(`- **Assessor note:** ${f.note.trim()}`);
       if (f.recommendation.trim()) L.push(`- **Recommendation:** ${f.recommendation.trim()}`);
+      findingExtraLines(f, rByKey, idx).forEach((x) => L.push(x));
       L.push("");
     });
   }
@@ -548,6 +667,7 @@ export function buildAarMarkdown(
         );
       }
       if (f.note.trim()) L.push(`- **Assessor note:** ${f.note.trim()}`);
+      findingExtraLines(f, rByKey, idx).forEach((x) => L.push(x));
       L.push("");
     });
     if (unlinkedEquipment.length) {
@@ -590,6 +710,8 @@ export function buildFindingsMarkdown(
   template?: AssessmentTemplate | null
 ): string {
   const idx = buildCheckpointIndex(template);
+  const rByKey = responsesByKey(a);
+  const allResponses = db.responses.filter((r) => r.assessmentId === a.id);
   const sorted = sortFindings(findings);
   const c = countReportData([], findings);
 
@@ -619,6 +741,9 @@ export function buildFindingsMarkdown(
     return L.join("\n");
   }
 
+  attackPathSection(sorted, rByKey, idx).forEach((x) => L.push(x));
+  controlTestsSection(a, allResponses, idx).forEach((x) => L.push(x));
+
   sorted.forEach((f, i) => {
     const cp = idx.get(f.checkpointKey);
     L.push(`## ${i + 1}. ${f.gapText}`);
@@ -628,6 +753,7 @@ export function buildFindingsMarkdown(
     if (cp?.text) L.push(`- **Criterion:** "${cp.text}"`);
     L.push(`- **Assessor note:** ${orDash(f.note)}`);
     L.push(`- **Recommendation:** ${orDash(f.recommendation)}`);
+    findingExtraLines(f, rByKey, idx).forEach((x) => L.push(x));
     L.push("");
   });
 
@@ -678,11 +804,13 @@ export function buildRecommendationsMarkdown(
   if (!sorted.length) {
     L.push("No findings were documented, so no recommendations are required.");
   } else {
+    const rByKey = responsesByKey(a);
     sorted.forEach((f, i) => {
       L.push(`### ${i + 1}. [${riskLabel(f.risk)}] ${f.gapText}`);
       L.push("");
       L.push(`- **Recommendation:** ${orDash(f.recommendation)}`);
       L.push(`- **Checkpoint:** ${checkpointLabel(f.checkpointKey, idx)}`);
+      findingExtraLines(f, rByKey, idx).forEach((x) => L.push(x));
       L.push("");
     });
   }
