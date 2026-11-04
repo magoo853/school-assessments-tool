@@ -95,6 +95,9 @@ export function deriveFindings(assessmentId: string): Finding[] {
     if (pf.caVerifiedBy) ca.caVerifiedBy = pf.caVerifiedBy;
     if (pf.caIssueCode) ca.caIssueCode = pf.caIssueCode;
     if (pf.caRemedyCode) ca.caRemedyCode = pf.caRemedyCode;
+    if (pf.caReverifyBy) ca.caReverifyBy = pf.caReverifyBy;
+    if (pf.caRegression) ca.caRegression = pf.caRegression;
+    if (pf.reach) ca.reach = pf.reach;
     if (Object.keys(ca).length) caByKey.set(pf.checkpointKey, ca);
   }
 
@@ -198,4 +201,50 @@ function deriveEquipmentMentions(
       break; // one equipment mention per finding from the heuristic
     }
   }
+}
+
+/**
+ * Regression pass (2026-11-04, directed build #4): when a COMPLETED
+ * assessment records a checkpoint failed again, any verified-closed
+ * corrective action for the same checkpoint at the same school (on an
+ * earlier assessment) reopens — its prior verification is preserved
+ * in the regression record, never silently left standing. Called by
+ * the completion flow after the assessment is marked completed;
+ * derivation at reassessment START deliberately does not regress
+ * anything (carried-forward answers are not a new observation).
+ * Returns the number of actions reopened.
+ */
+export function applyRegressions(assessmentId: string): number {
+  const assessment = db.assessments.get(assessmentId);
+  if (!assessment || assessment.status !== "completed") return 0;
+  const failedKeys = new Set(
+    db.findings
+      .filter((f) => f.assessmentId === assessmentId)
+      .map((f) => f.checkpointKey)
+  );
+  if (!failedKeys.size) return 0;
+  let reopened = 0;
+  for (const other of db.assessments.filter(
+    (a) => a.clientName === assessment.clientName && a.id !== assessmentId
+  )) {
+    for (const f of db.findings.filter((x) => x.assessmentId === other.id)) {
+      if (f.caStatus !== "verified" || !failedKeys.has(f.checkpointKey))
+        continue;
+      db.findings.upsert({
+        ...f,
+        caStatus: "open",
+        caRegression: {
+          reopenedAt: new Date().toISOString(),
+          fromAssessmentId: assessmentId,
+          priorVerifiedAt: f.caVerifiedAt ?? "",
+          ...(f.caVerifiedBy ? { priorVerifiedBy: f.caVerifiedBy } : {}),
+        },
+        caVerifiedAt: undefined,
+        caVerifiedBy: undefined,
+        caReverifyBy: undefined,
+      });
+      reopened++;
+    }
+  }
+  return reopened;
 }

@@ -123,3 +123,30 @@ export function overdueFindings(
         (RISK_ORDER[a.risk] ?? 3) - (RISK_ORDER[b.risk] ?? 3)
     );
 }
+
+/* ------------------------------------------------------------------ */
+/* Verified closure that can lapse and regress (2026-11-04, #4)        */
+/* ------------------------------------------------------------------ */
+
+/** Days after verification by which a verified closure must be
+ *  re-verified, scaled by the finding's severity. */
+export function reverifyWindowDays(risk: Finding["risk"]): number {
+  return risk === "high" ? 90 : risk === "moderate" ? 180 : 365;
+}
+
+/** caReverifyBy for a verification happening on `verifiedAt` (ISO). */
+export function reverifyByFor(risk: Finding["risk"], verifiedAt: string): string {
+  const d = new Date(verifiedAt);
+  d.setDate(d.getDate() + reverifyWindowDays(risk));
+  return d.toISOString().slice(0, 10);
+}
+
+/** A verified closure whose re-verify-by date has passed. The closure
+ *  still stands — but it is surfaced until re-verified. */
+export function isReverifyLapsed(
+  f: Finding,
+  today: string = todayStr()
+): boolean {
+  if (caStatusOf(f) !== "verified" || !f.caReverifyBy) return false;
+  return f.caReverifyBy < today;
+}

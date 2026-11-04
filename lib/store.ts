@@ -74,6 +74,48 @@ export interface Assessment {
   review?: ReviewRecord;
 }
 
+/** A control test recorded at the checkpoint during the walkthrough
+ *  (2026-11-04, directed build #2): presence is not function — the
+ *  assessor records HOW the control was tested and what happened.
+ *  Absent = not tested. */
+export interface ControlTest {
+  method: string;
+  result: "pass" | "fail" | "not_tested";
+  note: string;
+  /** Assessor name (recorded, not enforced — no accounts). */
+  by: string;
+  /** ISO date (YYYY-MM-DD). */
+  at: string;
+}
+
+/** Reachability of a finding (2026-11-04, directed build #3): where
+ *  the gap sits relative to an intruder's path and the school day.
+ *  Absent = derived defaults from the checkpoint's campus zone. */
+export type Exposure =
+  | "public_street"
+  | "campus_perimeter"
+  | "controlled_interior"
+  | "restricted";
+
+export interface Reachability {
+  exposure: Exposure;
+  /** Students/staff present in the affected area during school hours. */
+  inSession: boolean;
+  /** Named compensating control relied on, if any (free text). */
+  compensating: string;
+}
+
+/** A verified closure that later regressed (2026-11-04, directed
+ *  build #4): the prior verification is preserved, never silently
+ *  overwritten, and the reopening links to the reassessment that
+ *  recorded the same checkpoint failed again. */
+export interface CaRegression {
+  reopenedAt: string;
+  fromAssessmentId: ID;
+  priorVerifiedAt: string;
+  priorVerifiedBy?: string;
+}
+
 export interface ResponseRow {
   id: ID;
   assessmentId: ID;
@@ -85,6 +127,9 @@ export interface ResponseRow {
   /** Photo evidence ids → lib/photos.ts (sat_photos table). Optional for
    *  backward compatibility with rows stored before photo support. */
   photoIds?: string[];
+  /** Control test recorded at this checkpoint (optional; absent =
+   *  not tested). Survives into findings/reports via the checkpoint. */
+  test?: ControlTest;
 }
 
 export type CaStatus = "open" | "in_progress" | "corrected" | "verified";
@@ -113,6 +158,17 @@ export interface Finding {
    *  a CA is marked corrected/verified; the note fields stay as-is. */
   caIssueCode?: string;
   caRemedyCode?: string;
+  /** Re-verify-by date for a verified closure (YYYY-MM-DD), set when
+   *  the action is verified — window scales with severity. Surfaced
+   *  when it lapses; the closure stands until re-verified or the
+   *  checkpoint regresses. */
+  caReverifyBy?: string;
+  /** Set when a verified closure regressed and reopened (see
+   *  CaRegression). */
+  caRegression?: CaRegression;
+  /** Reachability inputs for the weighted priority (optional;
+   *  defaults derive from the checkpoint's campus zone). */
+  reach?: Reachability;
 }
 
 /** One condition observation of a school asset, recorded at a touch
